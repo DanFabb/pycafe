@@ -1,4 +1,4 @@
-Welcome to the pyCAFE project template project's documentation!
+Welcome to the pyCAFE project 
 ===============================================================
 
 .. toctree::
