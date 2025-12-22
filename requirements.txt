@@ -1,0 +1,6 @@
+# Package requirements for users
+numpy>=1.20
+scipy>=1.8
+matplotlib>=3.5
+tqdm>=4.60
+gmsh>=4.10
