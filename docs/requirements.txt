@@ -1,2 +1,3 @@
 sphinx-copybutton
 sphinx-book-theme
+sphinx-rtd-theme
