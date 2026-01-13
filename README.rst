@@ -78,22 +78,6 @@ pyCAFE:
         rho=fluid["rho"],
     )
 
----
-
-Installation
-------------
-
-pyCAFE can be installed using ``pip``:
-
-.. code-block:: console
-
-    pip install pycafe
-
-To install pyCAFE in development mode:
-
-.. code-block:: console
-
-    pip install -e .[dev]
 
 ---
 
