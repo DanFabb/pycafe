@@ -450,6 +450,7 @@ def build_impedance_matrix(
     rho,
     c0,
     Z,
+    elements=None,
 ):
     """
     Assemble the global acoustic impedance (damping) matrix on a boundary.
@@ -499,46 +500,75 @@ def build_impedance_matrix(
 
     num_nodes = nodes.shape[0]
     C_global = lil_matrix((num_nodes, num_nodes), dtype=complex)
-    # Zeta = impedenza normalizzata (input utente)
+
+    if len(boundary_nodes_impedance) == 0 or Z == 0:
+        return C_global
+
     zeta = Z
-
     Z_spec = zeta * rho * c0        # Pa·s/m
-    
-    if Z == 0:
-        admittance = 0
+    admittance = 1.0 / Z_spec
+    scale = rho * admittance
+
+    bnd_0based = np.asarray(boundary_nodes_impedance, dtype=int) - 1
+    bnd_set = set(bnd_0based.tolist())
+
+    if elements is not None and 'Line 3' in elements:
+        # ── Line3 quadratic integration (correct for CQUAD8 meshes) ──
+        sqrt35 = np.sqrt(3.0 / 5.0)
+        Xi3 = np.array([-sqrt35, 0.0,  sqrt35])
+        W3  = np.array([ 5./9., 8./9., 5./9.])
+
+        for elem in elements['Line 3']:
+            n1 = int(elem[0]) - 1
+            n2 = int(elem[1]) - 1
+            n3 = int(elem[2]) - 1
+
+            if n1 not in bnd_set and n2 not in bnd_set:
+                continue
+
+            x1 = nodes[n1, :2]; x2 = nodes[n2, :2]; x3 = nodes[n3, :2]
+            C_e = np.zeros((3, 3), dtype=complex)
+
+            for xi, w in zip(Xi3, W3):
+                Nv = np.array([
+                    xi * (xi - 1.0) / 2.0,
+                    xi * (xi + 1.0) / 2.0,
+                    1.0 - xi * xi,
+                ])
+                dN = np.array([(2*xi-1)/2., (2*xi+1)/2., -2*xi])
+                dxy = dN[0]*x1 + dN[1]*x2 + dN[2]*x3
+                detJ = np.linalg.norm(dxy)
+                C_e += scale * np.outer(Nv, Nv) * detJ * w
+
+            for a, ga in enumerate([n1, n2, n3]):
+                for b, gb in enumerate([n1, n2, n3]):
+                    C_global[ga, gb] += C_e[a, b]
+
     else:
-        admittance = 1.0 / Z_spec
+        # ── Line2 fallback: sort nodes first (Gmsh order is arbitrary) ──
+        bc_coords = nodes[bnd_0based, :2]
+        x_range = bc_coords[:, 0].max() - bc_coords[:, 0].min()
+        y_range = bc_coords[:, 1].max() - bc_coords[:, 1].min()
+        sort_axis = 1 if y_range >= x_range else 0
+        sort_idx = np.argsort(bc_coords[:, sort_axis])
+        sorted_0based = bnd_0based[sort_idx]
 
-    # numero di "edge" consecutivi
-    num_edges = len(boundary_nodes_impedance) - 1
+        gp = 1.0 / np.sqrt(3.0)
+        Xi = np.array([-gp, gp])
 
-    gp = 1.0 / np.sqrt(3.0)
-    Xi = np.array([-gp, gp])
-
-    for e in range(num_edges):
-        # nodi globali (0-based)
-        node_indices = boundary_nodes_impedance[e:e+2] - 1
-
-        x1 = nodes[node_indices[0], :2]
-        x2 = nodes[node_indices[1], :2]
-
-        T_1D, x0, x1D_e = calcola_line(x1, x2)
-
-        C_e = np.zeros((2, 2), dtype=complex)
-
-        for xi in Xi:
-            w = 1.0
-            N, dNdxi = linear_shape_1d(xi)
-            J, detJ, invJ = jacobian_1d(dNdxi, x1D_e)
-
-            B2 = B_damping(N)
-
-            C_e += (rho * admittance) * (B2.T @ B2) * detJ * w
-
-        # Assemblaggio globale
-        for i in range(2):
-            for j in range(2):
-                C_global[node_indices[i], node_indices[j]] += C_e[i, j]
+        for e in range(len(sorted_0based) - 1):
+            node_indices = sorted_0based[e:e+2]
+            x1 = nodes[node_indices[0], :2]
+            x2 = nodes[node_indices[1], :2]
+            _, _, x1D_e = calcola_line(x1, x2)
+            C_e = np.zeros((2, 2), dtype=complex)
+            for xi in Xi:
+                N, dNdxi = linear_shape_1d(xi)
+                _, detJ, _ = jacobian_1d(dNdxi, x1D_e)
+                C_e += scale * np.outer(N, N) * detJ * 1.0
+            for i in range(2):
+                for j in range(2):
+                    C_global[node_indices[i], node_indices[j]] += C_e[i, j]
 
     return C_global
 

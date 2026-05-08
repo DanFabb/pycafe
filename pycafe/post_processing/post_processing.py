@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
 import os
 
 def _ask_yes_no(question, default="y"):
@@ -17,9 +16,6 @@ def create_pressure_video(
     fps=2.5,
 ):
     import cv2
-    import os
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     tmp_dir = "_frames_tmp"
     os.makedirs(tmp_dir, exist_ok=True)
@@ -154,7 +150,7 @@ def plot_pressure_frequency_response(frequencies, p_point, label=None):
     plt.tight_layout()
     plt.show()
 
-def run_post_processing(nodes, p_full, frequencies):
+def run_post_processing(nodes, p_full, frequencies, elements=None):
     """
     Interactive post-processing entry point.
     ALL user interaction happens here.
@@ -217,6 +213,12 @@ def run_post_processing(nodes, p_full, frequencies):
         if fname == "":
             fname = "pressure_field.avi"
         create_pressure_video(nodes, p_full, frequencies, filename=fname)
+
+    # --- VTK export
+    if _ask_yes_no("Export pressure field to VTK/VTU files (ParaView)?"):
+        out_dir = input("Output directory [vtu_pressure]: ").strip() or "vtu_pressure"
+        from pycafe.post_processing.export_vtk import export_pressure_vtu
+        export_pressure_vtu(nodes, elements or {}, p_full, frequencies, out_dir)
 
     print("=== END POST-PROCESSING ===\n")
 import numpy as np

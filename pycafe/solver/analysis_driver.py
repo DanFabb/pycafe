@@ -15,6 +15,7 @@ def run_acoustic_analysis(
     bc_velocity,
     value_velocity_normal,
     rho,
+    elements=None,
 ):
     """
     Launch an interactive acoustic analysis on a reduced FEM system.
@@ -114,6 +115,7 @@ def run_acoustic_analysis(
             freqs=freqs,
             idx_free=idx_free,
             p0_nodes=p0_nodes,
+            elements=elements,
         )
 
         return {
@@ -164,6 +166,7 @@ def run_acoustic_analysis(
             nodes=nodes,
             p_full=p_full,
             frequencies=frequencies,
+            elements=elements,
         )
 
         return {

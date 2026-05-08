@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pycafe.build_matrices.assembly_cquad8 import expand_mode_to_full
+from pycafe.post_processing.post_processing import _ask_yes_no
 
 def run_modal_post_processing(
     nodes,
@@ -8,6 +9,7 @@ def run_modal_post_processing(
     freqs,
     idx_free,
     p0_nodes,
+    elements=None,
 ):
     """
     Interactive modal post-processing for acoustic modes.
@@ -91,6 +93,13 @@ def run_modal_post_processing(
             mode_id=k,
             freq=freqs[k]
         )
+
+    # --- VTK export
+    if _ask_yes_no("Export all mode shapes to VTK/VTU files (ParaView)?"):
+        out_dir = input("Output directory [vtu_modes]: ").strip() or "vtu_modes"
+        from pycafe.post_processing.export_vtk import export_modes_vtu
+        export_modes_vtu(nodes, elements or {}, modes_red, freqs, idx_free, p0_nodes, out_dir)
+
 def plot_acoustic_mode(nodes, mode_full, mode_id, freq):
     
     

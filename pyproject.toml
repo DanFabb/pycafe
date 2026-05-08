@@ -20,6 +20,7 @@ dependencies = [
     "matplotlib>=3.5",
     "tqdm>=4.60",
     "gmsh>=4.10",
+    "meshio>=5.0",
 ]
 
 
@@ -27,11 +28,13 @@ classifiers = [
     'Development Status :: 5 - Production/Stable',
     'Intended Audience :: Developers',
     'Topic :: Scientific/Engineering',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     "License :: OSI Approved :: MIT License",
 ]
 
-# Optional dependencies (can be installed with `pip install sdypy-template[dev]`).
+# Optional dependencies (can be installed with `pip install pyCAFE[dev]`).
 # Can add as many as you want, but they must be listed in the `optional-dependencies` section.
 [project.optional-dependencies]
 dev = [
@@ -55,4 +58,4 @@ include = ["pycafe/*"]
 
 # Define the files that are included in the source distribution (tar.gz)
 [tool.hatch.build.targets.sdist]
-include = ["https://github.com/DanFabb/pycafe"]
+include = ["pycafe/", "tests/", "README.rst", "LICENSE", "pyproject.toml"]

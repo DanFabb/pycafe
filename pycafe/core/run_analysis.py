@@ -13,6 +13,7 @@ def run_analysis(
     boundaries,
     rho,
     interactive=True,
+    elements=None,
 ):
     """
     Run an acoustic analysis on a prepared FEM system.
@@ -38,6 +39,7 @@ def run_analysis(
             bc_velocity=system["bc_velocity"],
             value_velocity_normal=system["value_velocity_normal"],
             rho=rho,
+            elements=elements,
         )
 
     # =========================================================

@@ -45,12 +45,13 @@ def _solve_linear(A, b):
 
 def build_normal_velocity_rhs(
     nodes,
-    boundary_velocity_nodes,  
-    idx_free,                 
+    boundary_velocity_nodes,
+    idx_free,
     rho,
     omega,
-    v_n,                                                 
+    v_n,
     boundaries=None,
+    elements=None,
 ):
     """
     Assemble the right-hand side vector due to prescribed normal velocity.
@@ -135,34 +136,101 @@ def build_normal_velocity_rhs(
         boundary_velocity_nodes = np.array(node_list, dtype=int) - 1
     else:
         boundary_velocity_nodes = np.array(boundary_velocity_nodes, dtype=int) - 1
-    
+
+    # Build O(1) lookup from global node index → reduced index
+    idx_free_set = set(idx_free.tolist())
+    idx_free_map = {int(g): i for i, g in enumerate(idx_free)}
+
     velocity_nodes_red = []
     velocity_values = []
 
-    GAUSS_POINT = 1.0 / np.sqrt(3.0)
-    Xi = np.array([-GAUSS_POINT, GAUSS_POINT])
-    w = 1.0
+    if elements is not None and 'Line 3' in elements:
+        # -------------------------------------------------------
+        # Quadratic Line3 integration using actual mesh boundary
+        # elements.  This correctly includes corner nodes shared
+        # with adjacent boundaries (Gmsh assigns corners to only
+        # one physical group, so they would otherwise be missed).
+        # -------------------------------------------------------
+        bnd_set_0based = set(boundary_velocity_nodes.tolist())
 
-    for e in range(len(boundary_velocity_nodes) - 1):
-        n1 = boundary_velocity_nodes[e]
-        n2 = boundary_velocity_nodes[e + 1]
+        # 3-point Gauss rule: exact for polynomials up to degree 5
+        sqrt35 = np.sqrt(3.0 / 5.0)
+        Xi3 = np.array([-sqrt35, 0.0,  sqrt35])
+        W3  = np.array([ 5./9., 8./9., 5./9.])
 
-        x_start = nodes[n1, :2]
-        x_end   = nodes[n2, :2]
+        for elem in elements['Line 3']:
+            n1_1b = int(elem[0]); n2_1b = int(elem[1]); n3_1b = int(elem[2])
+            n1 = n1_1b - 1; n2 = n2_1b - 1; n3 = n3_1b - 1
 
-        _, _, x1D_e = calcola_line(x_start, x_end)
+            # Keep element if either corner belongs to the velocity boundary.
+            # This picks up the two end elements whose other corner is in an
+            # adjacent physical group (e.g. 'bottom'/'top').
+            if n1 not in bnd_set_0based and n2 not in bnd_set_0based:
+                continue
 
-        for xi in Xi:
-            N, dN_dxi = linear_shape_1d(xi)
-            _, detJ, _ = jacobian_1d(dN_dxi, x1D_e)
+            x1 = nodes[n1, :2]
+            x2 = nodes[n2, :2]
+            x3 = nodes[n3, :2]
 
-            contrib = 1j * omega * rho * v_n * N * detJ * w
+            for xi, w in zip(Xi3, W3):
+                # Lagrange quadratic shape functions on ξ ∈ [-1, 1]
+                # nodes at ξ = -1 (n1), +1 (n2), 0 (n3)
+                Nv = np.array([
+                    xi * (xi - 1.0) / 2.0,   # N1
+                    xi * (xi + 1.0) / 2.0,   # N2
+                    1.0 - xi * xi,             # N3
+                ])
+                # Jacobian: dx/dξ
+                dN = np.array([
+                    (2.0*xi - 1.0) / 2.0,
+                    (2.0*xi + 1.0) / 2.0,
+                    -2.0 * xi,
+                ])
+                dxy = dN[0]*x1 + dN[1]*x2 + dN[2]*x3
+                detJ = np.linalg.norm(dxy)
 
-            for a, gnode in enumerate([n1, n2]):
-                if gnode in idx_free:
-                    red_idx = np.where(idx_free == gnode)[0][0]
-                    velocity_nodes_red.append(red_idx)
-                    velocity_values.append(contrib[a])
+                contrib = 1j * omega * rho * v_n * Nv * detJ * w
+
+                for a, gnode in enumerate([n1, n2, n3]):
+                    if gnode in idx_free_set:
+                        velocity_nodes_red.append(idx_free_map[gnode])
+                        velocity_values.append(contrib[a])
+
+    else:
+        # -------------------------------------------------------
+        # Fallback: Line2 integration with spatially sorted nodes.
+        # Gmsh may return boundary node lists in arbitrary order,
+        # so we sort along the dominant boundary direction first.
+        # -------------------------------------------------------
+        bc_coords = nodes[boundary_velocity_nodes, :2]
+        x_range = bc_coords[:, 0].max() - bc_coords[:, 0].min()
+        y_range = bc_coords[:, 1].max() - bc_coords[:, 1].min()
+        sort_axis = 1 if y_range >= x_range else 0
+        sort_idx = np.argsort(bc_coords[:, sort_axis])
+        boundary_velocity_nodes = boundary_velocity_nodes[sort_idx]
+
+        GAUSS_POINT = 1.0 / np.sqrt(3.0)
+        Xi = np.array([-GAUSS_POINT, GAUSS_POINT])
+
+        for e in range(len(boundary_velocity_nodes) - 1):
+            n1 = boundary_velocity_nodes[e]
+            n2 = boundary_velocity_nodes[e + 1]
+
+            x_start = nodes[n1, :2]
+            x_end   = nodes[n2, :2]
+
+            _, _, x1D_e = calcola_line(x_start, x_end)
+
+            for xi in Xi:
+                N, dN_dxi = linear_shape_1d(xi)
+                _, detJ, _ = jacobian_1d(dN_dxi, x1D_e)
+
+                contrib = 1j * omega * rho * v_n * N * detJ * 1.0
+
+                for a, gnode in enumerate([n1, n2]):
+                    if gnode in idx_free_set:
+                        velocity_nodes_red.append(idx_free_map[gnode])
+                        velocity_values.append(contrib[a])
 
     return (
         np.array(velocity_nodes_red, dtype=int),
@@ -303,6 +371,7 @@ def solve_helmholtz_frequency_sweep(
     rho=1.2,
     v_n=None,
     boundaries=None,
+    elements=None,
 ):
     """
     Frequency sweep Helmholtz solver with:
@@ -333,6 +402,7 @@ def solve_helmholtz_frequency_sweep(
                 omega=omega,
                 v_n=v_n,
                 boundaries=boundaries,
+                elements=elements,
             )
         else:
             velocity_nodes_red = None

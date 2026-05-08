@@ -1,12 +1,6 @@
 import numpy as np
 
 from pycafe.build_matrices.assembly_dispatcher import build_KM_acoustic
-from pycafe.build_matrices.assembly_cquad8 import (
-    build_impedance_matrix,
-    reduce_KMC_dirichlet_mask,
-    get_pressure_zero_nodes,
-    get_pressure_bc_from_boundaries_1,
-)
 from pycafe.build_matrices.assembly_cquad4 import (
     build_impedance_matrix,
     reduce_KMC_dirichlet_mask,
@@ -137,12 +131,20 @@ def prepare_acoustic_system(
     # --------------------------------------------------
     # 2) Build impedance matrix C
     # --------------------------------------------------
+    # resolve boundary names → 1-based node index lists
+    if boundary_nodes_impedance and isinstance(boundary_nodes_impedance[0], str):
+        resolved = []
+        for name in boundary_nodes_impedance:
+            resolved.extend(boundaries[name])
+        boundary_nodes_impedance = resolved
+
     C = build_impedance_matrix(
         nodes,
         boundary_nodes_impedance,
         rho,
         c0,
         Z_impedance,
+        elements=elements,
     )
 
     # --------------------------------------------------

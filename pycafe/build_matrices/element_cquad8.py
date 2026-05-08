@@ -16,12 +16,12 @@ def gauss_rule_quad_2x2():
         dtype=float
     )
 
-    w=1
+    w = 1.0
 
-    return xi, eta, w
+    return xi, eta, w * np.ones_like(xi, dtype=float)
 
 def gauss_rule_quad_3x3():
-    GAUSS_POINT = np.sqrt(3.0) / 5.0
+    GAUSS_POINT = np.sqrt(3.0 / 5.0)  # = sqrt(0.6) ≈ 0.7746
 
     xi = GAUSS_POINT * np.array(
         [-1, 0, 1,
@@ -327,7 +327,7 @@ def _ruota_nodi(normale, nodi_traslati):
 # ------------------------------------------------------------
 #  ELEMENT MATRICES (K_e, M_e)
 # ------------------------------------------------------------
-def element_matrices_cquad8(x_e, c, quad_rule=gauss_rule_quad_2x2):
+def element_matrices_cquad8(x_e, c, quad_rule=gauss_rule_quad_3x3):
     """
     Compute the element stiffness and mass matrices for a CQUAD8 element.
 

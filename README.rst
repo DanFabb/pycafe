@@ -143,3 +143,13 @@ License
 
 pyCAFE is released under the MIT License.
 See the ``LICENSE`` file for more information.
+
+
+---
+
+DOI
+---
+
+.. image:: https://zenodo.org/badge/1121240895.svg
+   :target: https://doi.org/10.5281/zenodo.19599893
+   :alt: DOI

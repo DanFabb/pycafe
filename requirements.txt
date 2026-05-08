@@ -4,3 +4,4 @@ scipy>=1.8
 matplotlib>=3.5
 tqdm>=4.60
 gmsh>=4.10
+meshio>=5.0
