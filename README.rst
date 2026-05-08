@@ -16,6 +16,17 @@ were broad and deep, there is always room for improvement and new features. A lo
 
 ---
 
+Installation
+------------
+
+pyCAFE is available on PyPI under the name ``pycafe-acoustics``:
+
+.. code-block:: console
+
+    pip install pycafe-acoustics
+
+---
+
 Typical workflow
 ----------------
 

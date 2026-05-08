@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pyCAFE"
+name = "pycafe-acoustics"
 version = "1.0.0"
 authors = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
 maintainers = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
