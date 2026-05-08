@@ -45,10 +45,35 @@ Solvers
 The solver module provides frequency-domain solution strategies
 for the acoustic Helmholtz equation.
 
+.. automodule:: pycafe.solver.analysis_driver
+   :members:
+
 .. automodule:: pycafe.solver.solver_helmholtz_1
    :members:
 
 .. automodule:: pycafe.solver.solver_modale
+   :members:
+
+---
+
+Element matrices
+----------------
+
+Element stiffness and mass matrix routines for CQUAD4 and CQUAD8 elements.
+
+.. automodule:: pycafe.build_matrices.element_cquad4
+   :members:
+
+.. automodule:: pycafe.build_matrices.element_cquad8
+   :members:
+
+.. automodule:: pycafe.build_matrices.assembly_cquad4
+   :members:
+
+.. automodule:: pycafe.build_matrices.assembly_cquad8
+   :members:
+
+.. automodule:: pycafe.build_matrices.assembly_dispatcher
    :members:
 
 ---
@@ -69,4 +94,20 @@ Boundary conditions
 Boundary condition definitions and utilities.
 
 .. automodule:: pycafe.boundary_condition.boundary_condition
+   :members:
+
+---
+
+Post-processing
+---------------
+
+Result extraction, visualization, and export utilities.
+
+.. automodule:: pycafe.post_processing.post_processing
+   :members:
+
+.. automodule:: pycafe.post_processing.post_processing_modal
+   :members:
+
+.. automodule:: pycafe.post_processing.export_vtk
    :members:
