@@ -1,0 +1,271 @@
+import numpy as np
+
+from pycafe.boundary_condition.acoustic_bc import (
+    AcousticBC,
+    check_node_index,
+    build_impedance_operator,
+    build_source_operator,
+    build_velocity_operator,
+)
+from pycafe.build_matrices.assembly_dispatcher import build_KM_acoustic
+from pycafe.build_matrices.bc_ops import (
+    reduce_KMC_dirichlet_mask,
+    get_pressure_zero_nodes,
+    get_pressure_bc_from_boundaries_1,
+)
+from pycafe.build_matrices.element_registry import ELEMENT_TYPES
+
+def prepare_acoustic_system(
+    *,
+    nodes,
+    elements,
+    boundaries,
+    rho,
+    c0,
+    bc,
+    groups=None,
+    debug=False,
+    debug_elem_id=0,
+):
+    """
+    Prepare the reduced acoustic finite element system.
+
+    This function assembles the global acoustic matrices, applies
+    impedance and Dirichlet boundary conditions, and maps pressure
+    constraints to the reduced system. The resulting data structure
+    contains all matrices and mappings required to run an acoustic
+    analysis.
+
+    The preparation workflow includes:
+    - Assembly of stiffness and mass matrices
+    - Construction of the impedance matrix
+    - Enforcement of zero-pressure (Dirichlet) boundary conditions
+    - Mapping of constant pressure boundaries and point sources
+
+    Parameters
+    ----------
+    nodes : ndarray of shape (N, 2) or (N, 3)
+        Coordinates of the mesh nodes.
+    elements : dict
+        Element connectivity information as returned by the mesh loader.
+    boundaries : dict
+        Dictionary mapping boundary names to lists of node indices.
+    rho : float
+        Fluid density.
+    c0 : float
+        Speed of sound in the fluid.
+    bc : AcousticBC or tuple
+        Boundary condition description. Either an
+        :class:`~pycafe.boundary_condition.acoustic_bc.AcousticBC`
+        instance or the legacy tuple returned by
+        :func:`assign_boundary_conditions`.
+    groups : dict, optional
+        Physical groups with element connectivity, as returned by
+        ``load_mesh_with_groups``. Required to integrate impedance and
+        velocity boundary conditions on the **faces** of a 3D mesh when
+        the faces are not already present in ``elements``.
+    debug : bool, optional
+        If True, additional debug information is stored during
+        matrix assembly. Default is False.
+    debug_elem_id : int, optional
+        Element index used for detailed debug output when
+        ``debug=True``. Default is 0.
+
+    Returns
+    -------
+    system : dict
+        Dictionary containing the complete acoustic system data with
+        the following entries:
+
+        - ``K`` : sparse matrix  
+            Global acoustic stiffness matrix.
+        - ``M`` : sparse matrix  
+            Global acoustic mass matrix.
+        - ``C`` : sparse matrix
+            Global acoustic impedance matrix, evaluated at
+            ``omega = 0`` when the impedance is frequency dependent.
+        - ``C_op`` / ``C_red_op`` : ImpedanceOperator
+            Global and reduced impedance operators; call ``.at(omega)``
+            to get ``C`` at a given frequency.
+        - ``velocity_op`` / ``velocity_red_op`` : NormalVelocityOperator
+            Global and reduced normal-velocity load operators.
+        - ``source_op`` / ``source_red_op`` : AcousticSourceOperator
+            Global and reduced volumetric source (monopole) operators.
+        - ``K_red`` : sparse matrix  
+            Reduced stiffness matrix.
+        - ``M_red`` : sparse matrix  
+            Reduced mass matrix.
+        - ``C_red`` : sparse matrix  
+            Reduced impedance matrix.
+        - ``idx_free`` : ndarray  
+            Indices of free degrees of freedom.
+        - ``p0_nodes`` : ndarray  
+            Node indices with zero-pressure boundary conditions.
+        - ``pressure_nodes_red`` : ndarray  
+            Indices of pressure-constrained nodes in the reduced system.
+        - ``pressure_values`` : ndarray  
+            Imposed pressure values in the reduced system.
+        - ``bc_velocity`` : list of str  
+            Boundary names with imposed normal velocity.
+        - ``value_velocity_normal`` : float  
+            Normal velocity value [m/s].
+        - ``elem_type`` : str  
+            Element type used for the assembly.
+        - ``debug`` : dict or None  
+            Debug information generated during assembly.
+
+    Notes
+    -----
+    This function prepares the system but does not solve it.
+    Use :func:`run_analysis` to perform modal or frequency-domain
+    acoustic analyses.
+
+    See Also
+    --------
+    create_matrices : Assemble global acoustic matrices.
+    run_analysis : Run the acoustic simulation.
+    assign_boundary_conditions : Interactive boundary condition setup.
+    """
+
+    bc = AcousticBC.from_legacy(bc)
+
+    # --------------------------------------------------
+    # 1) Build K, M
+    # --------------------------------------------------
+    K, M, dbg, elem_type = build_KM_acoustic(
+        nodes,
+        elements,
+        c0,
+        debug=debug,
+        debug_elem_id=debug_elem_id,
+        store_all_elements=debug,
+    )
+
+    # The fluid boundary is one dimension below the fluid itself:
+    # edges for a 2D domain, faces for a 3D one.
+    boundary_dim = ELEMENT_TYPES[elem_type].dim - 1
+
+    # --------------------------------------------------
+    # 2) Impedance (Robin) -> boundary matrix C
+    # --------------------------------------------------
+    C_op = build_impedance_operator(
+        bc,
+        nodes=nodes,
+        rho=rho,
+        c0=c0,
+        boundaries=boundaries,
+        groups=groups,
+        elements=elements,
+        boundary_dim=boundary_dim,
+    )
+    C = C_op.at(0.0)
+
+    # --------------------------------------------------
+    # 2b) Normal velocity (Neumann) -> load vector V_n
+    # --------------------------------------------------
+    velocity_op = build_velocity_operator(
+        bc,
+        nodes=nodes,
+        rho=rho,
+        boundaries=boundaries,
+        groups=groups,
+        elements=elements,
+        boundary_dim=boundary_dim,
+    )
+
+    # --------------------------------------------------
+    # 2c) Volumetric sources (monopoles) -> load vector Q
+    # --------------------------------------------------
+    source_op = build_source_operator(
+        bc,
+        nodes=nodes,
+        rho=rho,
+        elements=elements,
+    )
+
+    # --------------------------------------------------
+    # 3) Dirichlet pressure = 0
+    # --------------------------------------------------
+    p0_nodes = get_pressure_zero_nodes(
+        boundaries,
+        bc.pressure_zero,
+    )
+
+    K_red, M_red, C_red, idx_free = reduce_KMC_dirichlet_mask(
+        K,
+        M,
+        C,
+        p0_nodes,
+    )
+
+    # --------------------------------------------------
+    # 4) Pressure BC (constant + point source)
+    # --------------------------------------------------
+    # Each entry carries its own value, so they are mapped one by one
+    # and concatenated; the point sources are appended last so that a
+    # node shared with a boundary takes the source value.
+    pressure_nodes_red = np.array([], dtype=int)
+    pressure_values = np.array([], dtype=complex)
+
+    # A node index outside the mesh would simply match nothing in the
+    # reduced system, so the condition would vanish without a word.
+    n_nodes = np.asarray(nodes).shape[0]
+    entries = [(e.selection, e.value, None, None) for e in bc.pressure_constant]
+    entries += [
+        (None, 0.0, check_node_index(e.node, "point pressure", n_nodes), e.value)
+        for e in bc.point_pressure
+    ]
+
+    for selection, value, src_node, src_value in entries:
+        nodes_red, values = get_pressure_bc_from_boundaries_1(
+            boundaries=boundaries,
+            bc_pressure_constant=selection,
+            idx_free=idx_free,
+            pressure_value=value,
+            source_node_global=src_node,
+            source_pressure_value=src_value,
+        )
+        pressure_nodes_red = np.concatenate([pressure_nodes_red, nodes_red])
+        pressure_values = np.concatenate([pressure_values, values])
+
+    # Later entries win over earlier ones on a repeated DOF.
+    if pressure_nodes_red.size:
+        pressure_nodes_red, keep = np.unique(
+            pressure_nodes_red[::-1], return_index=True
+        )
+        pressure_values = pressure_values[::-1][keep]
+
+    # Legacy convenience fields: a single velocity boundary and value.
+    # Models with several distinct velocities are described only by the
+    # operators, which have no such limitation.
+    bc_velocity, value_velocity_normal = [], 0.0
+    if bc.velocity:
+        for entry in bc.velocity:
+            bc_velocity.extend(entry.selection)
+        first = bc.velocity[0].v_n
+        value_velocity_normal = first if not callable(first) else None
+
+    return {
+        "K": K,
+        "M": M,
+        "C": C,
+        "K_red": K_red,
+        "M_red": M_red,
+        "C_red": C_red,
+        "C_op": C_op,
+        "C_red_op": C_op.reduce(idx_free),
+        "velocity_op": velocity_op,
+        "velocity_red_op": velocity_op.reduce(idx_free),
+        "source_op": source_op,
+        "source_red_op": source_op.reduce(idx_free),
+        "bc": bc,
+        "boundary_dim": boundary_dim,
+        "idx_free": idx_free,
+        "p0_nodes": p0_nodes,
+        "pressure_nodes_red": pressure_nodes_red,
+        "pressure_values": pressure_values,
+        "bc_velocity": bc_velocity,
+        "value_velocity_normal": value_velocity_normal,
+        "elem_type": elem_type,
+        "debug": dbg,
+    }

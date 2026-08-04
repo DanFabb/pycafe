@@ -1,0 +1,343 @@
+%% Journal of Open Research Software Latex template - Created By Stephen Bonner and John Brennan, Durham Universtiy, UK.
+
+\documentclass{jors}
+\usepackage{graphicx}
+
+%% Set the header information
+\pagestyle{fancy}
+\definecolor{mygray}{gray}{0.6}
+\renewcommand\headrule{}
+\rhead{\footnotesize 3}
+\rhead{\textcolor{gray}{UP JORS software Latex paper template version 0.1}}
+
+\begin{document}
+
+{\bf {pyCAFE: A Finite Element Framework for Solving Acoustic Problems in Python}} \\ \\
+
+Please submit the completed paper to: editor.jors@ubiquitypress.com
+
+\rule{\textwidth}{1pt}
+
+\section*{(1) Overview}
+
+\vspace{0.5cm}
+
+\section*{Title}
+
+pyCAFE: A Finite Element Framework for Solving Acoustic Problems in Python
+
+\section*{Paper Authors}
+
+1. Fabbri, Daniele; (Lead/corresponding author first) \\
+2. Bruzzone, Fabio; 3. Rosso, Carlo etc.
+\section*{Paper Author Roles and Affiliations}
+1. Fabbri, Daniele; Conceptualization, software development, numerical implementation, validation, and manuscript preparation. Affiliation: Department of Mechanical and Aerospace Engineering, Politecnico di Torino, Turin, Italy.\\
+2. Supervision, and critical review of the manuscript. Affiliation: Department of Mechanical and Aerospace Engineering, Politecnico di Torino, Turin, Italy.\\
+3. Supervision, and critical review of the manuscript. Affiliation: Department of Mechanical and Aerospace Engineering, Politecnico di Torino, Turin, Italy.
+
+\section*{Abstract}
+
+pyCAFE is an open source Python framework for the numerical solution of two dimensional frequency domain acoustic problems using the Finite Element Method. The software provides explicit assembly of acoustic stiffness, mass, and damping matrices and supports commonly used boundary conditions, including prescribed pressure, prescribed normal velocity, and impedance boundaries. The software operates on externally generated two dimensional meshes produced using open source tools and allows both direct and modal solution strategies. Designed to provide a finite element workflow that closely follows the modelling philosophy of commercial software for acoustics simulations, pyCAFE explicitly exposes system matrices and boundary operators while remaining fully open source. Originally developed in MATLAB the framework has now been ported to Python to improve accessibility and integration with open scientific libraries for research and teaching in computational acoustics.
+
+\section*{Keywords}
+
+Acoustics; FEM; Python
+
+\section*{Introduction}
+
+Computational acoustics plays a central role in the numerical analysis of sound propagation in enclosed and semi enclosed domains, such as ducts, cavities, and waveguides. In these applications, frequency domain formulations are widely adopted, particularly when time harmonic responses are of interest. For complex geometries and boundary conditions, analytical solutions are generally not available, making numerical approaches essential. Among the available numerical methods, the Finite Element Method (FEM) is commonly employed due to its ability to discretize arbitrary geometries and to systematically incorporate a wide range of acoustic boundary conditions. The theoretical foundations of finite element formulations for acoustic problems are well established and extensively documented in the literature \cite{MacNeal1994,Desmet1999,Ihlenburg1995,Babuska1988,Prinn2023}, building on general numerical concepts originally developed for structural mechanics and later extended to acoustics. Solving the acoustic field in enclosed and open domains is widely used in both academia and industry \cite{HelmholtzResonator2012,Thompson2006,Harari2006, Khalefa2024}. This work focuses on low to mid frequency analyses, where finite element discretizations are particularly effective. While some open source tools can solve Helmholtz type problems, many frameworks adopt a variational weak form workflow in which the governing equations are expressed symbolically and assembled implicitly. In contrast, open source software adopting a matrix based finite element approach aligned with common commercial FEM practice remains limited. In such an approach, element level contributions are assembled explicitly into global system matrices and boundary operators are handled transparently. This design emphasizes numerical clarity, reproducibility, and direct inspection of the discretized operators, facilitating validation and benchmarking. 
+From a numerical discretization perspective, the same matrix based strategies used for structural discretization can be applied to the acoustic domain, leading to stiffness, mass, and damping based formulations that also form the basis for vibroacoustic coupling \cite{Nefske1976,Beriot2021} . Subsequent developments showed that structural and acoustic domains may be assembled into a unified coupled system, enabling eigenvalue or time harmonic analyses when required. While such coupled formulations and additional techniques such as absorbing domain \cite{Turkel1998,Pekel1995,Reheman2013}, represent important extensions of acoustic FEM, the present work focuses exclusively on the acoustic domain, building upon this established theoretical foundation.
+CAFE (Computational Acoustic Finite Elements) \cite{Fabbri2025} was originally developed as an open source MATLAB framework to address this gap by providing a clear and accessible implementation of frequency domain acoustic. The present work introduces pyCAFE, the Python translation of the original framework. The port to Python was motivated by the desire to improve accessibility and integration with modern open scientific libraries, while preserving the numerical philosophy and workflow of the original code.
+The software was designed to explicitly assemble acoustic stiffness, mass, and damping matrices while following a modelling workflow conceptually aligned with that of commercial finite element software. This design choice facilitates validation, benchmarking, and educational use by exposing the numerical operators involved in the discretised problem. pyCAFE operates on externally generated two dimensional finite element meshes, typically produced using Gmsh \cite{Gmsh2009}, and supports commonly used boundary conditions in frequency domain acoustics.
+
+%Compared to commercial tools this tools provides a lightweight  alternative for two dimensional acoustic simulations.
+
+%In contrast to general purpose open source frameworks, which focus on symbolic formulations for a broad class of partial differential equations, pyCAFE targets a more specialised use case, offering a transparent and numerically explicit environment for acoustic numerical analyses. 
+
+
+\section*{Implementation and architecture}
+
+The pyCAFE architecture is structured around a folder called \textit{core} that oversees the simulation workflow and delegates particular duties to a group of modular subfolders. Figure \ref{Fig1} depicts a schematic overview of the software architecture. 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{1.jpg}
+    \caption{Overall architecture of the pyCAFE framework and main software modules.}
+    \label{Fig1}
+\end{figure}
+The workflow is structured by using Python scripts that import the submodules instead of embedding problem logic in the core. This design choice was deliberately chosen to allow users to define simulation parameters, boundary conditions, and analysis options directly via keyboard input, without modifying the core implementation. By separating user driven input and problem configuration from the numerical backend, pyCAFE offers a flexible interface for custom simulations while keeping the core solver stable and intact. Mesh generation and geometry definition are handled externally. pyCAFE assumes that geometries are created following a predefined syntax compatible with Gmsh input files. The software provides auxiliary scripts for geometry creation to ensure consistent naming conventions and physical group definitions to support this process. A dedicated mesh loading module is used to import the mesh after it is generated. The material properties of the acoustic medium are defined separately, allowing users to specify fluid parameters independently of the mesh and geometry. Boundary conditions are assigned through a dedicated module that currently supports interactive input via the keyboard. This approach mirrors the conceptual workflow of commercial finite element software, where boundary conditions are explicitly defined and independent of the solver. The assembled acoustic system is passed to solver routines that support both direct frequency domain solutions and modal based approaches. Post-processing utilities are integrated at this stage to allow inspection and visualisation of acoustic pressure fields and derived quantities. The separation between solver logic and post processing further enhances modularity and enables users to adapt or replace individual components according to their specific needs.
+
+\subsection*{Geometry and material selection}
+pyCAFE operates on externally generated two dimensional meshes and provides helper scripts to understand how the geometry definition, meshing, and material parameter selection should have done to be complied with the software. The geometry module currently supports the interactive creation of simple benchmark domains (rectangular and circular cavities) through keyboard input. Users specify the geometric parameters, the maximum frequency of interest, and the desired element order (linear or quadratic). Mesh generation is performed through the Gmsh Python API \cite{Gmsh2009} addition to creating the geometric entities, the script assigns physical groups to both the domain and each boundary segment.  To facilitate reproducible workflows, the generated mesh is saved to a user-selected location via a file dialog. A companion mesh visualisation utility can then be used to load an existing .msh file, extract node coordinates, element connectivities, and physical boundary groups, and provide a quick 2D plot for inspection. Material properties for the acoustic medium are defined independently from the mesh. A dedicated material utility provides predefined parameter sets for common fluids (e.g., air and water) and supports custom user defined. For convenience, the characteristic impedance $Z_0 = \rho_0 c_0$  is computed and returned together with the selected density and sound speed, ensuring consistent parameter handling throughout the analysis pipeline.
+
+\subsection*{Build matrices}
+The \textit{build matrices} folder contains the numerical part useful for the construction of the acoustic finite element operators. This module implements the element level formulations required to assemble the global stiffness, mass, and damping matrices starting from the discretized mesh. The definition of element formulations is explicitly done by dedicated routines that include the corresponding shape functions, numerical integration schemes, and element matrices for the supported quadrilateral elements \cite{Beriot2016}. The implementation of linear and quadratic elements through separate element definition files at version 1.0.0 ensures clarity and easy extension to additional element types in the future. The import mesh element type is identified by an automatic mechanism and the correct element formulation is selected accordingly. Based on the detected element topology and order, the corresponding shape functions and element routines are invoked transparently during assembly. This design removes the need for manual user intervention when switching between different element types and guarantees consistency between the mesh discretization and the numerical operators used in the analysis. By following a fully matrix based approach, the resulting operators are directly accessible to the user, enabling inspection, debugging, and validation against reference solutions. 
+\subsection*{Boundary condition assignment}
+Boundary conditions in pyCAFE are assigned through a keyboard driven terminal interface. Boundary identification relies on the physical groups defined in the Gmsh mesh, for each boundary detected in the mesh, the user is prompted to select the desired acoustic boundary condition via keyboard input. The assignment procedure is intentionally decoupled from the solver and matrix assembly routines, allowing boundary conditions to be modified without altering the core numerical implementation. The following acoustic boundary condition types are currently supported: 
+\begin{itemize}
+    \item rigid (sound-hard) boundaries, which represent the default condition and enforce zero normal particle velocity;
+    \item zero pressure boundaries, where the acoustic pressure is prescribed to vanish;
+    \item constant pressure boundaries, in which a uniform pressure amplitude is imposed along the selected boundary;
+    \item  impedance boundaries, where a complex acoustic impedance relates pressure;
+    \item prescribed normal velocity boundaries, typically used to model vibrating surfaces or velocity driven acoustic excitation.
+\end{itemize}
+In addition to boundary based conditions, the framework also supports localized acoustic excitation through a point pressure source. The user specifies the spatial coordinates of the source, and the closest mesh node is automatically identified and selected. A pressure amplitude is then assigned to this node and incorporated directly into the acoustic load vector. All boundary condition information is collected and returned in a structured data container, which is subsequently passed to the matrix assembly and solver routines.
+\subsection*{Solver and post processing}
+Once the global acoustic system matrices have been assembled, pyCAFE provides both direct and modal solution strategies in the frequency domain. The user can explicitly select the preferred approach depending on the analysis objective. In the direct solution strategy, the frequency-domain acoustic problem is solved independently at each frequency of interest. Prescribed pressure boundary conditions are enforced using a partitioned formulation based on Guyan reduction \cite{Guyan1965, Kidder1973}. Normal velocity boundary conditions are incorporated as frequency dependent contributions to the right hand side vector, assembled through boundary integration using one dimensional finite elements. The solver supports both single frequency and frequency sweeps analyses. Sparse direct solvers are employed when available to ensure numerical robustness and efficiency \cite{Damhaug1993}. In addition to the direct approach, pyCAFE includes a modal solver for acoustic analysis. This option computes natural frequencies and corresponding acoustic mode shapes and can be used either for stand alone modal studies or as a basis for reduced order model \cite{Cai2024}. Post processing utilities are provided to facilitate result interpretation. The acoustic pressure field can be reconstructed and visualized over the entire computational domain, while pressure values can also be extracted at specific spatial locations to obtain point wise frequency response functions.
+
+\section*{Quality control}
+The software is currently based on a small set of automated tests implemented using pytest. These tests are primarily intended as  functional tests to verify that the core workflow executes correctly in a standard Python environment. The test suite checks basic package integrity (successful import and version availability) and includes a minimal acoustic FEM example that assembles the system matrices and runs a direct frequency domain analysis without user interaction. This approach allows both developers and users to quickly verify that the installation is functioning as expected. While more extensive unit testing and validation against benchmark problems are planned, the current test suite already provides a lightweight and transparent mechanism to detect breaking changes during development.
+In addition to automated testing, the correctness of the assembled system matrices has been assessed through numerical validation against a widely used commercial finite element software. Identical geometries, mesh discretizations, material properties, and boundary conditions were replicated, and the resulting acoustic natural frequencies and mode shapes were compared. For simplicity, the numerical setup adopted for the validation study and the corresponding comparison between pyCAFE and the commercial solver are presented in Fig. \ref{Fig2}.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{2.jpg}
+    \caption{Modal analysis results comparison between pyCAFE and commercial numerical software}
+    \label{Fig2}
+\end{figure}
+
+
+\section*{(2) Availability}
+\vspace{0.5cm}
+\section*{Operating system}
+
+This package is compatible with macOS, Windows, and Linux operating systems supporting Python version 3.11 or newer. No operating system specific features are required.
+
+\section*{Programming language}
+The software is implemented in Python. All core functionalities, including mesh handling, matrix assembly, solvers, and post  processing utilities, are written in Python.
+
+\section*{Additional system requirements}
+No special hardware requirements are imposed. The software can be executed on standard desktop or laptop computers. Memory and CPU requirements scale with the size of the finite element model; typical two dimensional acoustic problems with a few thousand degrees of freedom can be solved on consumer grade hardware. Input is provided via terminal based interaction and external mesh files, while output consists of numerical data and optional graphical visualizations.
+
+\section*{Dependencies}
+The following Python packages are required for basic functionality:
+\begin{itemize}
+    \item \textbf{NumPy} ($\geq$ 1.20) \cite{Harris2020}: numerical arrays and vectorized operations
+    \item \textbf{SciPy} ($\geq$ 1.8) \cite{Virtanen2020}: sparse linear algebra routines and frequency-domain solvers
+    \item \textbf{Matplotlib} ($\geq$ 3.5) \cite{Hunter2007}: visualization and post-processing of acoustic fields
+    \item \textbf{tqdm} ($\geq$ 4.60): progress monitoring for frequency sweeps
+    \item \textbf{Gmsh} ($\geq$ 4.10) \cite{Gmsh2009}: geometry definition and finite element mesh generation via the Python API
+\end{itemize}
+
+\section*{List of contributors}
+
+\begin{itemize}
+    \item \textbf{Daniele Fabbri}: conceptualization, software development, numerical implementation, validation, and manuscript preparation.
+    \item \textbf{Fabio Bruzzone}: scientific supervision, methodological guidance, and critical review of the numerical approach and software design.
+    \item \textbf{Carlo Rosso}: scientific supervision, methodological guidance, and critical review of the numerical approach and software design.
+\end{itemize}
+
+
+\section*{Software location:}
+
+
+{\bf Code repository} (GitHub)
+
+\begin{description}[noitemsep,topsep=0pt]
+	\item[Name:] pyCAFE
+	\item[Persistent identifier:] https://github.com/DanFabb/pycafe
+	\item[Licence:] MIT License
+	\item[Date published:] 19/12/2025
+\end{description}
+
+\section*{Language}
+English
+
+\section*{(3) Reuse potential}
+The pyCAFE framework is designed to support acoustic investigations in two dimensional domains discretized with quadrilateral finite elements, with a particular focus on low-mid frequency applications where FEM is most effective. Typical use cases include enclosed acoustic cavities, ducts, and generic 2D acoustic domains defined through externally generated meshes. The software supports both direct frequency domain analyses and modal approaches, enabling its use for resonance studies, frequency sweeps, and validation benchmarks. An example application, including visual representations of the acoustic pressure field over the computational domain, is shown in Fig \ref{Fig3}. The modular architecture of the code facilitates reuse and extension. New finite elements, boundary conditions, or solver strategies can be added by extending the corresponding submodules without modifying the core workflow. 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{3.jpg}
+    \caption{Graphical output of a frequency sweep simulation using pyCAFE }
+    \label{Fig3}
+\end{figure}
+Future developments planned beyond version 1.0.0 are summarized in Fig \ref{Fig4}, which presents a roadmap of intended improvements and extensions, including additional boundary conditions, perfectly matched layers for two dimensional elements, extended validation, and more advanced post processing capabilities. Contributions from the community are encouraged, and users interested in extending the software are invited to contact the corresponding author via the public code repository.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{4.jpg}
+    \caption{Roadmap for future pyCAFE versions}
+    \label{Fig4}
+\end{figure}
+
+
+
+
+\section*{Funding statement}
+This publication is part of the project PNRR-NGEU which has received funding from the MUR – DM 117/2023.
+\
+\begin{thebibliography}{99}
+
+\bibitem{MacNeal1994}
+MacNeal, R. H. (1994).
+\textit{Finite Elements: Their Design and Performance}.
+New York, NY: Marcel Dekker.
+
+\bibitem{Desmet1999}
+Desmet, W. and Vandepitte, D. (1999).
+Finite element method in acoustics.
+\textit{Proceedings of ISMA 1999}, Leuven, Belgium.
+
+\bibitem{Ihlenburg1995}
+Ihlenburg, F. and Babu{\v{s}}ka, I. (1995).
+Finite element solution of the Helmholtz equation with high wave number.
+Part I: The h-version of the FEM.
+\textit{Computers \& Mathematics with Applications}, 30(9), pp. 9-37.\\
+DOI: \url{https://doi.org/10.1016/0898-1221(95)00144-N}
+
+\bibitem{Babuska1988}
+Babu{\v{s}}ka, I. (1988).
+The p and h-p versions of the finite element method: The state of the art.
+In: Dwoyer, D. L., Hussaini, M. Y. and Voigt, R. G. (eds.),
+\textit{Finite Elements}.
+New York, NY: Springer, pp. 199-239.\\
+DOI: \url{https://doi.org/10.1007/978-1-4612-3786-0_10}
+
+\bibitem{Prinn2023}
+Prinn, A. G. (2023).
+A review of finite element methods for room acoustics.
+\textit{Acoustics}, 5(2), pp. 367-395.\\
+DOI: \url{https://doi.org/10.3390/acoustics5020022}
+
+\bibitem{HelmholtzResonator2012}
+Considerations on the Helmholtz resonator simulation and experiment.  
+\textit{Proceedings of the Romanian Academy Series A – Mathematics, Physics, Technical Sciences, Information Science},  
+vol. 13, 2012.
+
+\bibitem{Thompson2006}
+Thompson, L. L. (2006).  
+A review of finite-element methods for time-harmonic acoustics.  
+\textit{The Journal of the Acoustical Society of America}, 119(3), pp.1315-1330.\\
+DOI: \url{https://doi.org/10.1121/1.2164987}
+
+
+
+\bibitem{Harari2006}
+Harari, I. (2006).  
+A survey of finite element methods for time-harmonic acoustics.  
+\textit{Computer Methods in Applied Mechanics and Engineering}, 195(13), pp.1594-1607.\\
+DOI: \url{https://doi.org/10.1016/j.cma.2005.05.030}
+\bibitem{Khalefa2024}
+Khalefa, S. J. (2024).  
+An analytic and numerical study of Helmholtz equation using finite element method.  
+\textit{Mathematical Modelling of Engineering Problems}, 11(12), pp. 3440-3446.\\
+DOI: \url{https://doi.org/10.18280/mmep.111222}
+
+\bibitem{Nefske1976}
+Wolf, J. A., Nefske, D. J. and Howell, L. J. (1976).  
+Structural–Acoustic Finite Element Analysis of the Automobile Passenger Compartment.  
+\textit{1976 Automotive Engineering Congress and Exposition}.  
+SAE International.\\
+DOI: \url{https://doi.org/10.4271/760184}
+
+\bibitem{Beriot2021}
+Bériot, H. and Modave, A. (2021).  
+An automatic perfectly matched layer for acoustic finite element simulations in convex domains of general shape.  
+\textit{International Journal for Numerical Methods in Engineering}, 122(5), pp. 1239-1261.\\
+DOI: \url{https://doi.org/10.1002/nme.6560}
+
+\bibitem{Turkel1998}
+Turkel, E. and Yefet, A. (1998).  
+Absorbing PML boundary layers for wave-like equations.  
+\textit{Applied Numerical Mathematics}, 27(4), pp. 533-557.\\
+DOI: \url{https://doi.org/10.1016/S0168-9274(98)00026-9}
+
+\bibitem{Pekel1995}
+Pekel, U. and Mittra, R. (1995).  
+An application of the perfectly matched layer (PML) concept to the finite element method frequency-domain analysis of scattering problems.  
+\textit{IEEE Microwave and Guided Wave Letters}, 5(8), pp. 258-260.\\
+DOI: \url{https://doi.org/10.1109/75.401074}
+
+\bibitem{Reheman2013}
+Reheman, P. and Shiojiri, H. (2013).  
+Application of PML to analysis of nonlinear soil–structure–fluid problems using mixed elements.  
+\textit{International Journal of GEOMATE}, 4, pp. 505-510.\\
+DOI: \url{https://doi.org/10.21660/2013.8.2167}
+
+\bibitem{Fabbri2025}
+Fabbri, D., Bruzzone, F. and Rosso, C. (2025).  
+Acoustic field solution in a pipe using CAFE.  
+\textit{Proceedings of the OpenSD 2025 Conference}, Ljubljana, Slovenia, 16--17 June 2025.  
+University of Ljubljana, Faculty of Mechanical Engineering, pp.~48--51.  
+ISBN: 978-961-7187-17-5.
+
+\bibitem{Gmsh2009}
+Geuzaine, C. and Remacle, J.-F. (2009).
+Gmsh: A 3-D finite element mesh generator with built-in pre- and post-processing facilities.
+\textit{International Journal for Numerical Methods in Engineering}, 79(11), pp. 1309-1331.\\
+DOI: \url{https://doi.org/10.1002/nme.2579}
+\bibitem{Beriot2016}
+Bériot, H., Prinn, A. and Gabard, G. (2016).  
+Efficient implementation of high-order finite elements for Helmholtz problems.  
+\textit{International Journal for Numerical Methods in Engineering}, 106(3), pp. 213-240.\\
+DOI: \url{https://doi.org/10.1002/nme.5172}
+
+\bibitem{Guyan1965}
+Guyan, R. J. (1965).  
+Reduction of stiffness and mass matrices.  
+\textit{AIAA Journal}, 3(2), p. 380.\\
+DOI: \url{https://doi.org/10.2514/3.2874}
+\bibitem{Kidder1973}
+Kidder, R. L. (1973).  
+Reduction of structural frequency equations.  
+\textit{AIAA Journal}, 11(6), p.892.\\
+DOI: \url{https://doi.org/10.2514/3.6852}
+\bibitem{Cai2024}
+Cai, Y., van Ophem, S., Wu, S., Desmet, W. and Deckers, E. (2024).  
+Model order reduction of time-domain acoustic finite element simulations with perfectly matched layers.  
+\textit{Computer Methods in Applied Mechanics and Engineering}, 431, 117298.\\
+DOI: \url{https://doi.org/10.1016/j.cma.2024.117298}
+\bibitem{Damhaug1993}
+Damhaug, A. C., Mathisen, K. M. and Okstad, K. M. (1993).  
+The use of sparse matrix methods in finite-element codes for structural mechanics applications.  
+\textit{Computing Systems in Engineering}, 4(4), pp.~355--362.\\
+DOI: \url{https://doi.org/10.1016/0956-0521(93)90003-F}
+
+\bibitem{Harris2020}
+Harris, C. R., Millman, K. J., van der Walt, S. J., Gommers, R., Virtanen, P.,
+Cournapeau, D., Wieser, E., Taylor, J., Berg, S., Smith, N. J., Kern, R.,
+Picus, M., Hoyer, S., van Kerkwijk, M. H., Brett, M., Haldane, A.,
+Fern{\'a}ndez del R{\'i}o, J., Wiebe, M., Peterson, P., G{\'e}rard-Marchant, P.,
+Sheppard, K., Reddy, T., Weckesser, W., Abbasi, H., Gohlke, C. and Oliphant, T. E. (2020).
+Array programming with NumPy.
+\textit{Nature}, 585(7825), pp.~357--362.\\
+DOI: \url{https://doi.org/10.1038/s41586-020-2649-2}
+
+\bibitem{Virtanen2020}
+Virtanen, P., Gommers, R., Oliphant, T. E., Haberland, M., Reddy, T.,
+Cournapeau, D., Burovski, E., Peterson, P., Weckesser, W., Bright, J.,
+van der Walt, S. J., Brett, M., Wilson, J., Millman, K. J., Mayorov, N.,
+Nelson, A. R. J., Jones, E., Kern, R., Larson, E., Carey, C. J.,
+Polat, {\.I}., Feng, Y., Moore, E. W., VanderPlas, J., Laxalde, D.,
+Perktold, J., Cimrman, R., Henriksen, I., Quintero, E. A., Harris, C. R.,
+Archibald, A. M., Ribeiro, A. H., Pedregosa, F., van Mulbregt, P. and
+SciPy 1.0 Contributors (2020).  
+SciPy 1.0: Fundamental algorithms for scientific computing in Python.  
+\textit{Nature Methods}, 17, pp.~261--272.\\
+DOI: \url{https://doi.org/10.1038/s41592-019-0686-2}
+
+\bibitem{Hunter2007}
+Hunter, J. D. (2007).  
+Matplotlib: A 2D graphics environment.  
+\textit{Computing in Science \& Engineering}, 9(3), pp.~90--95.\\
+DOI: \url{https://doi.org/10.1109/MCSE.2007.55}
+
+
+\end{thebibliography}
+
+%\textcolor{blue}{Please enter references in the Harvard style and include a DOI where available, citing them in the text with a number in square brackets, e.g. \\ }
+
+%\textcolor{blue}{[1] Piwowar, H A 2011 Who Shares? Who Doesn't? Factors Associated with Openly Archiving Raw Research Data. PLoS ONE 6(7): e18657. DOI: \\ http://dx.doi.org/10.1371/journal.pone.0018657.}
+
+%\vspace{2cm}
+
+%\rule{\textwidth}{1pt}
+
+{ \bf Copyright Notice} \\
+Authors who publish with this journal agree to the following terms: \\
+
+Authors retain copyright and grant the journal right of first publication with the work simultaneously licensed under a  \href{http://creativecommons.org/licenses/by/3.0/}{Creative Commons Attribution License} that allows others to share the work with an acknowledgement of the work's authorship and initial publication in this journal. \\
+
+Authors are able to enter into separate, additional contractual arrangements for the non-exclusive distribution of the journal's published version of the work (e.g., post it to an institutional repository or publish it in a book), with an acknowledgement of its initial publication in this journal. \\
+
+By submitting this paper you agree to the terms of this Copyright Notice, which will apply to this submission if and when it is published by this journal.
+
+
+\end{document}

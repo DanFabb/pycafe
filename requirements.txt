@@ -1,0 +1,10 @@
+# Package requirements for users
+numpy>=1.20
+scipy>=1.8
+matplotlib>=3.5
+tqdm>=4.60
+gmsh>=4.10
+# FFmpeg binary, used by the 3D post-processing to write .mp4/.avi
+# movies. A system-wide ffmpeg is used when present; this wheel is the
+# fallback that keeps the movie export working inside the environment.
+imageio-ffmpeg>=0.4

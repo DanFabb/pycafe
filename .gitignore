@@ -1,0 +1,103 @@
+# ======================================================
+# Python
+# ======================================================
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.dll
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+
+# Conda
+.conda/
+conda-env/
+*.conda
+
+# ======================================================
+# Build / packaging
+# ======================================================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Editable installs / wheels
+pip-wheel-metadata/
+
+# ======================================================
+# Jupyter
+# ======================================================
+.ipynb_checkpoints/
+
+# ======================================================
+# Pytest
+# ======================================================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ======================================================
+# Sphinx documentation
+# ======================================================
+docs/build/
+docs/_build/
+
+# ======================================================
+# VS Code
+# ======================================================
+.vscode/
+
+# ======================================================
+# OS specific
+# ======================================================
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# ======================================================
+# Logs / temp
+# ======================================================
+*.log
+*.tmp
+*.bak
+
+# ======================================================
+# External tooling checked out inside the project
+# (marker/ carries its own .git and a virtualenv, ~1.2 GB)
+# ======================================================
+marker/
+
+# ======================================================
+# Reference material, not part of the software
+# MATLAB sources, theses, CAD models, Nastran binaries and papers.
+# Kept on disk, out of version control (~120 MB of binaries).
+# ======================================================
+Fonte_matlab/
+Letteratura_vibroa/
+
+# ======================================================
+# Solver / mesher by-products
+# ======================================================
+*.xdb
+*.f04
+*.op2
+*.h5
+
+# Filmati generati dal post-processing 3D (rigenerabili con
+# coupling_geometry/run_coupled.py)
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Mesh e filmati generati dai notebook di esempio
+examples/box_plate_nb.msh
+*.gif

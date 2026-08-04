@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyCAFE"
+version = "1.0.0"
+authors = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
+maintainers = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
+license = "MIT"
+description = "pyCAFE: a 2D finite element framework for solving acoustic equations."
+readme = "README.rst"
+keywords = ["pyCAFE", "Acoustics", "2D element"]
+requires-python = ">=3.10"
+
+# Dependency management (these must be installed for the package to work)
+dependencies = [
+    "numpy>=1.20",
+    "scipy>=1.8",
+    "matplotlib>=3.5",
+    "tqdm>=4.60",
+    "gmsh>=4.10",
+    # FFmpeg binary for the .mp4/.avi movies written by the 3D
+    # post-processing; a system-wide ffmpeg takes precedence.
+    "imageio-ffmpeg>=0.4",
+]
+
+
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'Topic :: Scientific/Engineering',
+    'Programming Language :: Python :: 3.12',
+    "License :: OSI Approved :: MIT License",
+]
+
+# Optional dependencies (can be installed with `pip install sdypy-template[dev]`).
+# Can add as many as you want, but they must be listed in the `optional-dependencies` section.
+[project.optional-dependencies]
+dev = [
+    "sphinx",
+    "twine",
+    "wheel",
+    "pytest",
+    "build",
+    "sphinx-rtd-theme",
+    "sphinx-copybutton>=0.5.2",
+]
+
+[project.urls]
+homepage = "https://github.com/DanFabb/pycafe"
+documentation = "https://github.com/DanFabb/pycafe"
+source = "https://github.com/DanFabb/pycafe"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# Define the files that are included in the wheel
+[tool.hatch.build.targets.wheel]
+include = ["pycafe/*"]
+
+# Define the files that are included in the source distribution (tar.gz)
+[tool.hatch.build.targets.sdist]
+include = [
+    "pycafe",
+    "tests",
+    "examples",
+    "docs",
+    "README.rst",
+    "CONTRIBUTING.rst",
+    "LICENSE",
+    "requirements.txt",
+    "requirements.dev.txt",
+    "pyproject.toml",
+]
