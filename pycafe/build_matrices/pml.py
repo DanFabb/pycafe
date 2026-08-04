@@ -558,6 +558,11 @@ class PMLOperator:
         return int(self._entry_elem.max()) + 1
 
     @property
+    def covered_dofs(self):
+        """The degrees of freedom the layer contributes to."""
+        return np.unique(self._rows)
+
+    @property
     def element_depth_extent(self):
         """
         How far each element spans along the depth of the layer [m].

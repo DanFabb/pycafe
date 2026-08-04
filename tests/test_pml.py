@@ -951,3 +951,77 @@ class TestFromTheMesh:
             groups=groups, pml=False,
         )
         assert system["pml_op"] is None
+
+
+class TestLayerAsOrdinaryFluid:
+    """
+    ``pml=False`` says the layer is ordinary fluid. It has to mean it:
+    dropping those elements instead leaves their nodes in the system with
+    nothing on them, and the solve fails on a singular matrix rather than
+    on anything the user can read.
+    """
+
+    L_PHYS, L_PML, H, W = 0.8, 0.35, 0.12, 0.12
+
+    def _mesh(self, tmp_path, name):
+        from pycafe.create_geom.visualize_mesh import load_mesh_with_groups
+        path = duct_msh(tmp_path / name, self.L_PHYS, self.L_PML,
+                        self.H, self.W, with_pml=True)
+        return load_mesh_with_groups(str(path))
+
+    def _prepare(self, mesh, pml):
+        import pycafe
+        from pycafe.boundary_condition.acoustic_bc import AcousticBC
+        nodes, elements, boundaries, groups = mesh
+        return pycafe.prepare_acoustic_system(
+            nodes=nodes, elements=elements, boundaries=boundaries,
+            rho=RHO, c0=C0, bc=AcousticBC().add_velocity("inlet", -1.0),
+            groups=groups, pml=pml,
+        )
+
+    def test_pml_false_assembles_the_whole_domain(self, tmp_path):
+        mesh = self._mesh(tmp_path, "off.msh")
+        nodes, elements, _, groups = mesh
+        system = self._prepare(mesh, False)
+
+        assert system["pml_op"] is None
+        K_all, M_all, _ = assemble_KM(nodes, elements["Tetrahedron 4"] - 1,
+                                      element_matrices_tetra4, C0)
+        assert abs(system["K"] - K_all).max() == pytest.approx(0.0)
+        assert abs(system["M"] - M_all).max() == pytest.approx(0.0)
+
+    def test_pml_false_leaves_no_empty_row(self, tmp_path):
+        system = self._prepare(self._mesh(tmp_path, "rows.msh"), False)
+        for matrix in (system["K_red"], system["M_red"]):
+            csr = matrix.tocsr()
+            assert np.all(np.diff(csr.indptr) > 0)
+
+    def test_the_two_settings_disagree(self, tmp_path):
+        """The layer is either fluid or absorber, never both and never gone."""
+        mesh = self._mesh(tmp_path, "both.msh")
+        off = self._prepare(mesh, False)
+        on = self._prepare(mesh, {"verbose": False})
+        assert on["K"].nnz < off["K"].nnz
+        assert on["pml_op"] is not None
+
+    def test_an_unreachable_unknown_is_reported(self, tmp_path):
+        """
+        A domain that leaves part of the mesh out is refused with a
+        message, not with 'matrix is exactly singular' from the solver.
+        """
+        import pycafe
+        from pycafe.boundary_condition.acoustic_bc import AcousticBC
+
+        nodes, elements, boundaries, groups = self._mesh(tmp_path, "gap.msh")
+        crippled = {k: dict(v) for k, v in groups.items()}
+        keep = groups["fluid"]["elements"]["Tetrahedron 4"]
+        crippled["fluid"]["elements"] = {"Tetrahedron 4": keep[: len(keep) // 2]}
+        crippled.pop("pml")
+
+        with pytest.raises(ValueError, match="on no element"):
+            pycafe.prepare_acoustic_system(
+                nodes=nodes, elements=elements, boundaries=boundaries,
+                rho=RHO, c0=C0,
+                bc=AcousticBC().add_velocity("inlet", -1.0),
+                groups=crippled,
+            )

@@ -17,6 +17,46 @@ from pycafe.build_matrices.element_registry import ELEMENT_TYPES
 from pycafe.build_matrices.pml import pml_from_groups
 from pycafe.create_geom.conventions import names_for
 
+def _merge_element_groups(*element_dicts):
+    """Concatenate the connectivity of several physical groups."""
+    merged = {}
+    for elements in element_dicts:
+        for name, conn in elements.items():
+            conn = np.asarray(conn, dtype=int)
+            merged[name] = (conn if name not in merged
+                            else np.vstack([merged[name], conn]))
+    return merged
+
+
+def _check_no_orphan_dofs(K_red, M_red, pml_op, idx_free):
+    """
+    Refuse a system where some unknowns are touched by no element.
+
+    Such a row is exactly zero at every frequency, so the solve fails
+    with nothing more informative than "matrix is exactly singular". It
+    happens when the assembled domain is a strict subset of the mesh —
+    typically a physical group that leaves part of it out.
+    """
+    covered = np.zeros(K_red.shape[0], dtype=bool)
+    for matrix in (K_red, M_red):
+        csr = matrix.tocsr()
+        covered |= np.diff(csr.indptr) > 0
+    if pml_op is not None:
+        covered[pml_op.covered_dofs] = True
+
+    orphans = np.flatnonzero(~covered)
+    if orphans.size:
+        idx_free = np.asarray(idx_free, dtype=int)
+        raise ValueError(
+            f"{orphans.size} of {covered.size} acoustic unknowns are on no "
+            "element, so the system is singular before any solve. Global "
+            f"node indices (0-based) start at {idx_free[orphans[:5]].tolist()}"
+            f"{' ...' if orphans.size > 5 else ''}. This usually means the "
+            "assembled domain leaves part of the mesh out: check that every "
+            "region of the fluid is in a physical group the analysis reads."
+        )
+
+
 def prepare_acoustic_system(
     *,
     nodes,
@@ -75,9 +115,12 @@ def prepare_acoustic_system(
         :func:`~pycafe.build_matrices.pml.pml_from_groups` (for instance
         ``{"target_reflection": 1e-2}``). The layer itself comes from
         the mesh: a physical group named ``pml`` next to the fluid one
-        turns it on, and nothing else is needed. Pass ``False`` to
-        ignore such a group and treat the layer as ordinary fluid.
-        Requires ``groups``.
+        turns it on, and nothing else is needed. Requires ``groups``.
+
+        Pass ``False`` to treat the layer as ordinary fluid: its
+        elements then join the acoustic domain instead of being replaced
+        by the operator, which is the comparison to run before trusting
+        an absorbing model.
     debug_elem_id : int, optional
         Element index used for detailed debug output when
         ``debug=True``. Default is 0.
@@ -147,23 +190,39 @@ def prepare_acoustic_system(
     # the fluid group and nothing else — otherwise the layer would be
     # assembled as ordinary fluid *and* again through the PML operator,
     # which replaces rather than corrects.
-    fluid_group = None
+    fluid_group = pml_group = None
     if groups is not None:
-        fluid_names = names_for("fluid")
         fluid_group = next(
-            (g for g in groups if g.lower() in fluid_names), None
+            (g for g in groups if g.lower() in names_for("fluid")), None
         )
-    domain_elements = (elements if fluid_group is None
-                       else groups[fluid_group]["elements"])
+        pml_group = next(
+            (g for g in groups if g.lower() in names_for("pml")), None
+        )
+
+    # ``pml=False`` means the layer is to be treated as ordinary fluid,
+    # so its elements join the acoustic domain. Dropping them instead
+    # would leave their nodes in the system with no element on them.
+    merged = None
+    if fluid_group is not None and pml_group is not None and pml is False:
+        merged = _merge_element_groups(groups[fluid_group]["elements"],
+                                       groups[pml_group]["elements"])
+
+    if merged is not None:
+        domain_elements = merged
+    elif fluid_group is not None:
+        domain_elements = groups[fluid_group]["elements"]
+    else:
+        domain_elements = elements
 
     # --------------------------------------------------
     # 1) Build K, M
     # --------------------------------------------------
     K, M, dbg, elem_type = build_KM_acoustic(
         nodes,
-        elements,
+        elements if merged is None else merged,
         c0,
-        groups=groups if fluid_group is not None else None,
+        groups=groups if (fluid_group is not None and merged is None)
+        else None,
         debug=debug,
         debug_elem_id=debug_elem_id,
         store_all_elements=debug,
@@ -239,6 +298,8 @@ def prepare_acoustic_system(
             nodes, groups, c0, n_dof=nodes.shape[0],
             **(pml or {}),
         )
+
+    _check_no_orphan_dofs(K_red, M_red, pml_op, idx_free)
 
     # --------------------------------------------------
     # 4) Pressure BC (constant + point source)
