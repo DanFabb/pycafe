@@ -27,7 +27,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, ROOT)
 
 # ── pyCAFE ────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ import scipy.sparse.linalg as spla
 # ═════════════════════════════════════════════════════════════════════
 # PARAMETERS
 # ═════════════════════════════════════════════════════════════════════
-MESH_FILE = os.path.join(ROOT, "examples", "rectangle_CQUAD8.msh")
+MESH_FILE = os.path.join(HERE, "rectangle_CQUAD8.msh")
 Lx, Ly = 1.0, 0.5
 c0, rho = 343.0, 1.204
 v_n = 1.0        # piston velocity toward +x (into the fluid)
@@ -431,6 +432,6 @@ for row, (p_c, p_f, p_a) in enumerate(cases):
     ax_phase.legend(fontsize=7)
 
 plt.tight_layout()
-out_path = os.path.join(ROOT, "examples", "test_direct_helmholtz_pycafe_fenics.png")
+out_path = os.path.join(HERE, "test_direct_helmholtz_pycafe_fenics.png")
 plt.savefig(out_path, dpi=150, bbox_inches="tight")
 print(f"\nFigure saved: {out_path}")

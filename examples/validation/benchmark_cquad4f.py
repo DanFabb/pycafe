@@ -14,9 +14,9 @@ followed by a mesh-convergence check of a simply supported square plate
 against the analytical Kirchhoff solution.
 
 For the full validation, including the term-by-term comparison of the
-element stiffness matrix, see ``examples/cquad4_plate_validation.ipynb``.
+element stiffness matrix, see ``examples/validation/cquad4_plate_validation.ipynb``.
 
-Usage:  python -m examples.benchmark_cquad4f
+Usage:  python -m examples.validation.benchmark_cquad4f
 """
 
 from functools import partial

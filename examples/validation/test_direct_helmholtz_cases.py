@@ -2,7 +2,7 @@
 Five direct Helmholtz solver test cases — pyCAFE CQUAD8 vs 1D analytical.
 
 Geometry : 1 m × 0.5 m rectangular cavity, air.
-Mesh     : examples/rectangle_CQUAD8.msh  (6337 DOF, CQUAD8)
+Mesh     : examples/validation/rectangle_CQUAD8.msh  (6337 DOF, CQUAD8)
 
 Cases
 -----
@@ -29,15 +29,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Allow running from the project root or from examples/
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Allow running from the project root or from examples/validation/
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, ROOT)
 
 import pycafe
 from pycafe.solver.solver_helmholtz_1 import solve_helmholtz_frequency_sweep
 
 # ─────────────────────────────────────────────────────────
-MESH = os.path.join(ROOT, "examples", "rectangle_CQUAD8.msh")
+MESH = os.path.join(HERE, "rectangle_CQUAD8.msh")
 Lx, Ly = 1.0, 0.5
 c0 = 343.0
 rho = 1.204
@@ -286,7 +287,7 @@ ax6.set_title("Case 5 — |pA − pB| / |pA|  (away from resonances)")
 ax6.grid(True, alpha=0.4)
 
 plt.tight_layout()
-out_path = os.path.join(ROOT, "examples", "test_direct_helmholtz_cases.png")
+out_path = os.path.join(HERE, "test_direct_helmholtz_cases.png")
 plt.savefig(out_path, dpi=150, bbox_inches="tight")
 print(f"\nFigure saved: {out_path}")
 
