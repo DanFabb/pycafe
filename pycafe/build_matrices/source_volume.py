@@ -17,6 +17,8 @@
 # The point evaluation inverts the isoparametric map x(xi) = N(xi) x_e
 # with a Newton iteration, which converges in a handful of steps on any
 # non-degenerate element.
+import math
+
 import numpy as np
 
 from .element_cquad4 import cquad4_shape
@@ -39,6 +41,23 @@ def _hex8(pt):
     return N, np.column_stack([dN_dxi, dN_deta, dN_dzeta])
 
 
+# Reference tetrahedron: N1 = 1-r-s-t at the origin, then r, s, t along
+# the three edges, which is the Gmsh "Tetrahedron 4" ordering. The
+# gradients are constant, so dN does not depend on the point.
+_DN_TETRA4 = np.array([
+    [-1.0, -1.0, -1.0],
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0],
+])
+
+
+def _tetra4(pt):
+    r, s, t = pt
+    N = np.array([1.0 - r - s - t, r, s, t])
+    return N, _DN_TETRA4
+
+
 def _gauss_tensor(dim, n=2):
     """Tensor-product Gauss rule on [-1, 1]^dim."""
     xi, w = np.polynomial.legendre.leggauss(n)
@@ -51,14 +70,45 @@ def _gauss_tensor(dim, n=2):
     return pts, weights
 
 
-# Acoustic domain elements: shape routine, topological dimension and
-# quadrature order for the load vector int N dV.
+def _centroid_simplex(dim, n=1):
+    """
+    One-point rule at the centroid of the reference simplex.
+
+    Exact for the linear shape functions of the tetrahedron: the weight
+    is the volume of the reference element, 1/6 in 3D, so that
+    ``int N_a dV = V/4`` per node — Felippa (15.34).
+    """
+    pt = np.full((1, dim), 1.0 / (dim + 1))
+    return pt, np.array([1.0 / math.factorial(dim)])
+
+
+def _inside_tensor(xi, N, tol):
+    """Containment on a tensor-product reference element."""
+    return bool(np.all(np.abs(xi) <= 1.0 + tol))
+
+
+def _inside_simplex(xi, N, tol):
+    """
+    Containment on a simplex: every barycentric coordinate is positive.
+
+    The tensor test ``|xi| <= 1`` would accept the rest of the
+    surrounding cube, so a point outside the tetrahedron would be
+    attributed to it.
+    """
+    return bool(np.all(N >= -tol))
+
+
+# Acoustic domain elements: shape routine, topological dimension,
+# quadrature for the load vector int N dV, and the containment test used
+# when locating a point source.
 VOLUME_ELEMENTS = {
     "Quadrilateral 4": dict(n_nodes=4, dim=2, shape=_quad4, quad_n=2),
     "Quadrilateral 8": dict(n_nodes=8, dim=2, shape=_quad8, quad_n=3),
     "Quadrangle 4": dict(n_nodes=4, dim=2, shape=_quad4, quad_n=2),
     "Quadrangle 8": dict(n_nodes=8, dim=2, shape=_quad8, quad_n=3),
     "Hexahedron 8": dict(n_nodes=8, dim=3, shape=_hex8, quad_n=2),
+    "Tetrahedron 4": dict(n_nodes=4, dim=3, shape=_tetra4, quad_n=1,
+                          rule=_centroid_simplex, inside=_inside_simplex),
 }
 
 
@@ -113,7 +163,8 @@ def volume_load_vector(nodes, elements, n_dof):
         if spec["dim"] != domain_dim:
             continue                      # boundary group, not the domain
         conn = np.asarray(elements[name], dtype=int)
-        pts, weights = _gauss_tensor(spec["dim"], spec["quad_n"])
+        rule = spec.get("rule", _gauss_tensor)
+        pts, weights = rule(spec["dim"], spec["quad_n"])
         N_at_gp = [spec["shape"](p) for p in pts]
 
         for elem in conn:
@@ -231,7 +282,7 @@ def point_source_shape(nodes, elements, x_s, tol=1e-8):
             if result is None:
                 continue
             xi, N = result
-            if np.all(np.abs(xi) <= 1.0 + tol):
+            if spec.get("inside", _inside_tensor)(xi, N, tol):
                 return idx, N
 
     raise ValueError(

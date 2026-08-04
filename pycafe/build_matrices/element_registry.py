@@ -27,6 +27,7 @@ from .element_cquad4 import element_matrices_cquad4
 from .element_cquad4f import element_matrices_cquad4f
 from .element_cquad8 import element_matrices_cquad8
 from .element_hex8 import element_matrices_hex8
+from .element_tetra4 import element_matrices_tetra4
 
 
 class ElementSpec(NamedTuple):
@@ -62,6 +63,14 @@ ELEMENT_TYPES = {
         field="acoustic",
         dofs_per_node=1,
         kernel=element_matrices_hex8,
+    ),
+    "CTETRA4": ElementSpec(
+        gmsh_names=("Tetrahedron 4",),
+        n_nodes=4,
+        dim=3,
+        field="acoustic",
+        dofs_per_node=1,
+        kernel=element_matrices_tetra4,
     ),
     # Structural shell, Nastran/MacNeal style: selective reduced
     # integration plus residual bending flexibility for transverse

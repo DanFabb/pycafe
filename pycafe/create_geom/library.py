@@ -370,8 +370,10 @@ def _cad_box(model, cad_path, units="auto", tol=1e-2):
     Import a CAD solid and return its box in metres.
 
     Rejects anything that is not box-shaped, since the structured
-    (hexahedral) meshing below would silently fall back to tetrahedra,
-    which pyCAFE has no acoustic kernel for.
+    (hexahedral) meshing below would silently fall back to tetrahedra.
+    Those do assemble (CTETRA4), but this builder promises a structured
+    hexahedral duct and the caller should hear about it rather than get
+    a different mesh than asked for.
     """
     import numpy as np
 
@@ -405,8 +407,9 @@ def _cad_box(model, cad_path, units="auto", tol=1e-2):
         raise ValueError(
             f"{cad_path} is not box-shaped (volume {volume:.4g} m3 against "
             f"{np.prod(lengths):.4g} m3 for its bounding box). Structured "
-            "hexahedral meshing needs a box; a general shape would come out "
-            "tetrahedral, and pyCAFE has no tetrahedral acoustic element."
+            "hexahedral meshing needs a box; a general shape comes out "
+            "tetrahedral instead. Mesh it yourself with GmshModel and "
+            "assemble it as CTETRA4 if that is what you want."
         )
     return lo, hi, lengths, scale
 

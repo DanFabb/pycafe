@@ -38,8 +38,9 @@ runs at the end to say whether the result is actually usable.
 
 Caveats worth knowing before trusting a converted model: a CAD import
 gives a *tetrahedral* mesh unless the geometry is simple enough to be
-recombined, and pyCAFE's acoustic kernels are CHEXA8 and CQUAD4/8 — a
-tet mesh will load and fail the validator on element types. And a plate
+recombined. That loads and assembles — CTETRA4 is a registered acoustic
+element — but only at first order: a mesh of 10-node tetrahedra has no
+kernel and the validator will say so. And a plate
 imported as its own surface is not conforming with the fluid unless the
 two were meshed together: check ``interface conforming`` in the report,
 not just the group names.
@@ -261,7 +262,8 @@ def cad_to_mesh(
     recombine : bool, optional
         Ask Gmsh to recombine into quads/hexes. It succeeds only on
         geometry that allows it; otherwise the mesh stays tetrahedral,
-        which pyCAFE has no kernel for — the validator will say so.
+        which assembles as CTETRA4 — at the cost of six elements per
+        brick and a worse pressure gradient.
     dim : int, optional
         Dimension to mesh.
     validate : bool, optional

@@ -274,15 +274,31 @@ class TestValidation:
         assert not report.ok
         assert any("fluids" in e for e in report.errors)
 
-    def test_unusable_element_type_is_reported(self, tmp_path):
-        """A tetrahedral mesh has no acoustic kernel in pyCAFE."""
+    def test_linear_tetrahedra_are_accepted(self, tmp_path):
+        """CTETRA4 has a kernel, so a plain tetrahedral mesh validates."""
         with GmshModel("tets") as m:
+            box = m.occ.addBox(0, 0, 0, 1, 1, 1)
+            m.occ.synchronize()
+            m.size(0.2)
+            m.physical(3, [box], "fluid")
+            m.generate(3, kernel="occ")
+            path = m.write(tmp_path / "tets.msh")
+        report = validate_mesh(str(path), analysis="acoustic", f_max=100.0)
+        assert report.ok, report.errors
+
+    def test_unusable_element_type_is_reported(self, tmp_path):
+        """
+        Second-order tetrahedra have no kernel: the linear CTETRA4 is
+        the only tetrahedron pyCAFE assembles.
+        """
+        with GmshModel("tets10") as m:
             box = m.occ.addBox(0, 0, 0, 1, 1, 1)
             m.occ.synchronize()
             m.size(0.5)
             m.physical(3, [box], "fluid")
+            gmsh.option.setNumber("Mesh.ElementOrder", 2)
             m.generate(3, kernel="occ")
-            path = m.write(tmp_path / "tets.msh")
+            path = m.write(tmp_path / "tets10.msh")
         report = validate_mesh(str(path), analysis="acoustic")
         assert not report.ok
         assert any("no element type pyCAFE can assemble" in e

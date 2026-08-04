@@ -57,6 +57,9 @@ operations.
 .. automodule:: pycafe.build_matrices.element_hex8
    :members:
 
+.. automodule:: pycafe.build_matrices.element_tetra4
+   :members:
+
 .. automodule:: pycafe.build_matrices.element_cquad4f
    :members:
 
