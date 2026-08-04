@@ -248,6 +248,17 @@ class CartesianPML:
             p.sigma(depth[:, j]) for j, p in enumerate(self.profiles)
         ])
 
+    def depth(self, points):
+        """How far into the layer a point lies [m], along the deepest axis."""
+        pts = np.atleast_2d(np.asarray(points, float))[:, :self.dim]
+        return np.maximum(
+            np.maximum(self.inner_min - pts, pts - self.inner_max), 0.0
+        ).max(axis=1)
+
+    @property
+    def thickness(self):
+        return max(p.thickness for p in self.profiles)
+
     def prepare(self, centroids):
         return {"sigma": self.sigma(centroids)}
 
@@ -306,6 +317,15 @@ class RadialPML:
         r, r_hat = self._radial(centroids)
         _check_radius(r, "centre")
         return np.stack([r_hat] + _tangents(r_hat), axis=1)
+
+    def depth(self, points):
+        """How far past the inner radius a point lies [m]."""
+        r, _ = self._radial(np.atleast_2d(np.asarray(points, float)))
+        return np.maximum(r - self.inner_radius, 0.0)
+
+    @property
+    def thickness(self):
+        return self.profile.thickness
 
     def prepare(self, centroids):
         r, _ = self._radial(centroids)
@@ -389,6 +409,15 @@ class CylindricalPML:
         theta_hat = np.cross(self.axis, rho_hat)
         axis = np.broadcast_to(self.axis, rho_hat.shape)
         return np.stack([rho_hat, theta_hat, axis], axis=1)
+
+    def depth(self, points):
+        """How far past the inner radius a point lies [m]."""
+        rho, _ = self._radial(np.atleast_2d(np.asarray(points, float)))
+        return np.maximum(rho - self.inner_radius, 0.0)
+
+    @property
+    def thickness(self):
+        return self.profile.thickness
 
     def prepare(self, centroids):
         rho, _ = self._radial(centroids)
@@ -517,6 +546,7 @@ class PMLOperator:
     c0: float
     layer: object
     _data: dict = field(repr=False)
+    _depth_extent: np.ndarray = field(repr=False)
     _rows: np.ndarray = field(repr=False)
     _cols: np.ndarray = field(repr=False)
     _entry_elem: np.ndarray = field(repr=False)
@@ -526,6 +556,17 @@ class PMLOperator:
     @property
     def n_elements(self):
         return int(self._entry_elem.max()) + 1
+
+    @property
+    def element_depth_extent(self):
+        """
+        How far each element spans along the depth of the layer [m].
+
+        The size that matters for the profile: an element long in the
+        depth direction takes a big step in ``sigma``, however small it
+        is across.
+        """
+        return self._depth_extent
 
     @property
     def sigma_e(self):
@@ -588,6 +629,7 @@ class PMLOperator:
             c0=self.c0,
             layer=self.layer,
             _data=self._data,
+            _depth_extent=self._depth_extent,
             _rows=position[self._rows[keep]],
             _cols=position[self._cols[keep]],
             _entry_elem=self._entry_elem[keep],
@@ -660,6 +702,13 @@ def build_pml_operator(nodes, elements, c0, layer, n_dof=None):
     frames = layer.frames(centroids)
     data = layer.prepare(centroids)
 
+    depth_extent = []
+    for name, conn in conns:
+        node_depth = layer.depth(nodes[conn - 1].reshape(-1, nodes.shape[1]))
+        node_depth = node_depth.reshape(conn.shape)
+        depth_extent.append(node_depth.max(axis=1) - node_depth.min(axis=1))
+    depth_extent = np.concatenate(depth_extent)
+
     # ------------------------------------------------ quadrature
     rows, cols, entry_elem = [], [], []
     grad_vals, mass_vals = [], []
@@ -696,6 +745,7 @@ def build_pml_operator(nodes, elements, c0, layer, n_dof=None):
         c0=float(c0),
         layer=layer,
         _data=data,
+        _depth_extent=depth_extent,
         _rows=np.concatenate(rows),
         _cols=np.concatenate(cols),
         _entry_elem=np.concatenate(entry_elem),
@@ -878,12 +928,17 @@ def identify_layer_shape(nodes, fluid_nodes, pml_nodes, axis_hint=None):
 
 def layer_resolution(operator):
     """
-    How many element layers the absorption profile is spread over.
+    How many elements the absorption profile is spread over.
 
     The profile is constant on each element, so it climbs to ``sigma0``
     in as many steps as there are elements across the thickness. Few
     steps mean large jumps, and a wave reflects off a large jump in
     ``sigma`` however well the layer is matched analytically.
+
+    The count is the thickness divided by the typical size of an element
+    **measured along the depth direction** — not the number of distinct
+    values of ``sigma``, which on an unstructured mesh is simply the
+    number of elements, since no two centroids share a depth.
 
     Parameters
     ----------
@@ -892,17 +947,16 @@ def layer_resolution(operator):
     Returns
     -------
     int
-        Number of distinct absorption levels, counting the elements that
-        sit at the interface with ``sigma = 0``.
+        Estimated number of element layers across the thickness, at
+        least 1.
     """
-    sigma = operator.sigma_e
-    sigma = sigma.max(axis=1) if sigma.ndim == 2 else sigma
-    peak = float(sigma.max())
-    if peak <= 0.0:
+    extent = operator.element_depth_extent
+    typical = float(np.median(extent[extent > 0.0])) if np.any(extent > 0.0) \
+        else 0.0
+    thickness = float(getattr(operator.layer, "thickness", 0.0))
+    if typical <= 0.0 or thickness <= 0.0:
         return 1
-    # Round to a thousandth of the peak: element centroids at the same
-    # depth differ only by round-off, and should count once.
-    return int(np.unique(np.round(sigma / peak, 3)).size)
+    return max(1, int(round(thickness / typical)))
 
 
 def pml_from_groups(nodes, groups, c0, *, target_reflection=1e-4, order=2,
