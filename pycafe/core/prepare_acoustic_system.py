@@ -15,6 +15,7 @@ from pycafe.build_matrices.bc_ops import (
 )
 from pycafe.build_matrices.element_registry import ELEMENT_TYPES
 from pycafe.build_matrices.pml import pml_from_groups
+from pycafe.create_geom.conventions import names_for
 
 def prepare_acoustic_system(
     *,
@@ -139,6 +140,22 @@ def prepare_acoustic_system(
 
     bc = AcousticBC.from_legacy(bc)
 
+    # The global ``elements`` dict mixes the roles: on a mesh with a
+    # separate absorbing layer, its tetrahedra sit in the same
+    # "Tetrahedron 4" array as the fluid's. Only the physical groups
+    # tell them apart, so when they are available the acoustic domain is
+    # the fluid group and nothing else — otherwise the layer would be
+    # assembled as ordinary fluid *and* again through the PML operator,
+    # which replaces rather than corrects.
+    fluid_group = None
+    if groups is not None:
+        fluid_names = names_for("fluid")
+        fluid_group = next(
+            (g for g in groups if g.lower() in fluid_names), None
+        )
+    domain_elements = (elements if fluid_group is None
+                       else groups[fluid_group]["elements"])
+
     # --------------------------------------------------
     # 1) Build K, M
     # --------------------------------------------------
@@ -146,6 +163,7 @@ def prepare_acoustic_system(
         nodes,
         elements,
         c0,
+        groups=groups if fluid_group is not None else None,
         debug=debug,
         debug_elem_id=debug_elem_id,
         store_all_elements=debug,
@@ -186,11 +204,15 @@ def prepare_acoustic_system(
     # --------------------------------------------------
     # 2c) Volumetric sources (monopoles) -> load vector Q
     # --------------------------------------------------
+    # Volumetric sources belong to the physical fluid: integrating a
+    # distributed source over the absorbing layer as well would turn the
+    # absorber into a radiator, and make the answer depend on how thick
+    # it is.
     source_op = build_source_operator(
         bc,
         nodes=nodes,
         rho=rho,
-        elements=elements,
+        elements=domain_elements,
     )
 
     # --------------------------------------------------

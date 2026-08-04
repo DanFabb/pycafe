@@ -842,20 +842,93 @@ class TestFromTheMesh:
         assert isinstance(system["pml_op"].layer, CartesianPML)
         assert swr < 0.15
 
-    def test_asking_for_too_little_reflection_backfires(self, tmp_path):
+    def test_a_stronger_layer_reflects_less(self, tmp_path):
         """
-        The layer is thin and the mesh is tetrahedral, so the profile is
-        a coarse, irregular staircase. Past a point, raising sigma0 makes
-        the wave scatter off the staircase rather than be absorbed by it,
-        and the reflection **grows**. The behaviour is documented in
-        :meth:`PowerProfile.for_reflection`; this pins it down so that a
-        change in the profile handling shows up.
+        On a layer this mesh resolves, the reflection follows the target
+        it was asked for. It did not while the layer was being counted
+        twice — once as ordinary fluid and once through the operator —
+        which is what this pins down.
         """
         path = duct_msh(tmp_path / "greedy.msh", self.L_PHYS, self.L_PML,
                         self.H, self.W, with_pml=True)
         _, swr_mild = self._run(path, target=1e-1)
-        _, swr_greedy = self._run(path, target=1e-3)
-        assert swr_greedy > swr_mild
+        _, swr_strong = self._run(path, target=1e-3)
+        assert swr_strong < swr_mild
+
+    def test_the_layer_replaces_rather_than_adds(self, tmp_path):
+        """
+        The invariant the operator is built on: the PML elements must be
+        absent from K and M, because the operator supplies their whole
+        contribution. Assembling them in both places leaves a layer of
+        double stiffness that still solves, and still looks absorbing,
+        so nothing but this test catches it.
+        """
+        import pycafe
+        from pycafe.build_matrices.assembly import assemble_KM
+        from pycafe.create_geom.visualize_mesh import load_mesh_with_groups
+        from pycafe.boundary_condition.acoustic_bc import AcousticBC
+
+        path = duct_msh(tmp_path / "invariant.msh", self.L_PHYS, self.L_PML,
+                        self.H, self.W, with_pml=True)
+        nodes, elements, boundaries, groups = load_mesh_with_groups(str(path))
+        system = pycafe.prepare_acoustic_system(
+            nodes=nodes, elements=elements, boundaries=boundaries,
+            rho=RHO, c0=C0, bc=AcousticBC().add_velocity("inlet", -1.0),
+            groups=groups, pml={"verbose": False},
+        )
+
+        fluid_only = groups["fluid"]["elements"]["Tetrahedron 4"]
+        K_fluid, M_fluid, _ = assemble_KM(nodes, fluid_only - 1,
+                                          element_matrices_tetra4, C0)
+        assert abs(system["K"] - K_fluid).max() == pytest.approx(0.0)
+        assert abs(system["M"] - M_fluid).max() == pytest.approx(0.0)
+
+        # ... and the two halves put back together are the whole domain
+        every = elements["Tetrahedron 4"]
+        assert fluid_only.shape[0] < every.shape[0]
+        K_all, M_all, _ = assemble_KM(nodes, every - 1,
+                                      element_matrices_tetra4, C0)
+        omega = 2 * np.pi * self.FREQ
+        no_absorption = build_pml_operator(
+            nodes, groups["pml"]["elements"], C0,
+            CartesianPML(
+                inner_min=nodes.min(axis=0) - 1.0,
+                inner_max=nodes.max(axis=0) + 1.0,
+                profiles=tuple(PowerProfile(0.0, 1.0) for _ in range(3)),
+            ),
+        )
+        rebuilt = (K_fluid - omega ** 2 * M_fluid) + no_absorption.matrix(omega)
+        reference = K_all - omega ** 2 * M_all
+        assert abs(rebuilt - reference).max() < 1e-9
+
+    def test_a_distributed_source_stays_out_of_the_layer(self, tmp_path):
+        """
+        A source density fills the fluid, not the absorber: otherwise the
+        answer depends on how thick the layer is.
+        """
+        import pycafe
+        from pycafe.create_geom.visualize_mesh import load_mesh_with_groups
+        from pycafe.boundary_condition.acoustic_bc import AcousticBC
+
+        path = duct_msh(tmp_path / "source.msh", self.L_PHYS, self.L_PML,
+                        self.H, self.W, with_pml=True)
+        nodes, elements, boundaries, groups = load_mesh_with_groups(str(path))
+        system = pycafe.prepare_acoustic_system(
+            nodes=nodes, elements=elements, boundaries=boundaries,
+            rho=RHO, c0=C0, bc=AcousticBC().add_distributed_source(1.0),
+            groups=groups, pml={"verbose": False},
+        )
+        load = system["source_op"].at(2 * np.pi * self.FREQ)
+
+        # the integral is the volume of the fluid alone
+        volume = abs(load).sum() / (RHO * 2 * np.pi * self.FREQ)
+        assert volume == pytest.approx(self.L_PHYS * self.H * self.W,
+                                       rel=1e-6)
+
+        deep_in_the_layer = np.where(
+            nodes[:, 0] > self.L_PHYS + 0.05
+        )[0]
+        assert np.allclose(load[deep_in_the_layer], 0.0)
 
     def test_without_the_group_the_duct_rings(self, tmp_path):
         path = duct_msh(tmp_path / "without.msh", self.L_PHYS, self.L_PML,
