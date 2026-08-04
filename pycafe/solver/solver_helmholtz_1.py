@@ -171,6 +171,7 @@ def solve_helmholtz_single_frequency(
     velocity_values=None,
     boundaries=None,
     f_red=None,
+    A_extra=None,
 ):
     """
     Solve the reduced acoustic Helmholtz problem at a single frequency.
@@ -212,6 +213,13 @@ def solve_helmholtz_single_frequency(
         ``K_red.shape[0]``. Added to the velocity contribution; this is
         the path used by the frequency sweep, which assembles the load
         vector once and only re-scales it per frequency.
+    A_extra : scipy.sparse matrix, optional
+        A further block added to ``K + j omega C - omega^2 M`` at this
+        frequency, already reduced to the free degrees of freedom. This
+        is how an absorbing layer enters: its elements are absent from
+        ``K_red`` and ``M_red``, and it supplies their contribution
+        itself — see
+        :meth:`pycafe.build_matrices.pml.PMLOperator.matrix`.
 
     Returns
     -------
@@ -244,6 +252,8 @@ def solve_helmholtz_single_frequency(
 
     N = K_red.shape[0]
     A = K_red + 1j * omega * C_red - (omega**2) * M_red
+    if A_extra is not None:
+        A = A + A_extra
 
     pressure_nodes_red = np.asarray(pressure_nodes_red, dtype=int)
     pressure_values = np.asarray(pressure_values, dtype=complex)
@@ -313,6 +323,7 @@ def solve_helmholtz_frequency_sweep(
     velocity_operator=None,
     impedance_operator=None,
     source_operator=None,
+    pml_operator=None,
 ):
     """
     Solve the acoustic Helmholtz problem over a frequency range.
@@ -423,6 +434,12 @@ def solve_helmholtz_frequency_sweep(
         C_omega = (impedance_operator.at(omega)
                    if impedance_operator is not None else C_red)
 
+        # The layer replaces K - omega^2 M on its own elements, which are
+        # not in K_red and M_red at all, so this is an addition and not a
+        # correction.
+        A_extra = (pml_operator.matrix(omega)
+                   if pml_operator is not None else None)
+
         P_red[:, i] = solve_helmholtz_single_frequency(
             K_red,
             M_red,
@@ -431,6 +448,7 @@ def solve_helmholtz_frequency_sweep(
             pressure_nodes_red,
             pressure_values,
             f_red=f_red,
+            A_extra=A_extra,
         )
 
     return P_red

@@ -55,6 +55,15 @@ ROLES = (
              "its elements are also the interface faces",
     ),
     RoleSpec(
+        role="pml",
+        names=("pml", "absorbing_layer"),
+        dim_offset=0,
+        field="acoustic",
+        what="the absorbing layer wrapped around the fluid; naming it is "
+             "the whole switch — no group, no PML. Same element types as "
+             "the fluid, and conforming with it",
+    ),
+    RoleSpec(
         role="clamp",
         names=("plate_clamp", "clamp", "fixed"),
         dim_offset=-1,

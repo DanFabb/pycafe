@@ -14,6 +14,7 @@ from pycafe.build_matrices.bc_ops import (
     get_pressure_bc_from_boundaries_1,
 )
 from pycafe.build_matrices.element_registry import ELEMENT_TYPES
+from pycafe.build_matrices.pml import pml_from_groups
 
 def prepare_acoustic_system(
     *,
@@ -24,6 +25,7 @@ def prepare_acoustic_system(
     c0,
     bc,
     groups=None,
+    pml=None,
     debug=False,
     debug_elem_id=0,
 ):
@@ -67,6 +69,14 @@ def prepare_acoustic_system(
     debug : bool, optional
         If True, additional debug information is stored during
         matrix assembly. Default is False.
+    pml : dict or False, optional
+        Settings for the absorbing layer, passed on to
+        :func:`~pycafe.build_matrices.pml.pml_from_groups` (for instance
+        ``{"target_reflection": 1e-2}``). The layer itself comes from
+        the mesh: a physical group named ``pml`` next to the fluid one
+        turns it on, and nothing else is needed. Pass ``False`` to
+        ignore such a group and treat the layer as ordinary fluid.
+        Requires ``groups``.
     debug_elem_id : int, optional
         Element index used for detailed debug output when
         ``debug=True``. Default is 0.
@@ -199,6 +209,16 @@ def prepare_acoustic_system(
     )
 
     # --------------------------------------------------
+    # 3b) Absorbing layer, if the mesh names one
+    # --------------------------------------------------
+    pml_op = None
+    if groups is not None and pml is not False:
+        pml_op = pml_from_groups(
+            nodes, groups, c0, n_dof=nodes.shape[0],
+            **(pml or {}),
+        )
+
+    # --------------------------------------------------
     # 4) Pressure BC (constant + point source)
     # --------------------------------------------------
     # Each entry carries its own value, so they are mapped one by one
@@ -258,6 +278,8 @@ def prepare_acoustic_system(
         "velocity_red_op": velocity_op.reduce(idx_free),
         "source_op": source_op,
         "source_red_op": source_op.reduce(idx_free),
+        "pml_op": pml_op,
+        "pml_red_op": None if pml_op is None else pml_op.reduce(idx_free),
         "bc": bc,
         "boundary_dim": boundary_dim,
         "idx_free": idx_free,
