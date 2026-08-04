@@ -63,6 +63,9 @@ operations.
 .. automodule:: pycafe.build_matrices.element_cquad4f
    :members:
 
+.. automodule:: pycafe.build_matrices.pml
+   :members:
+
 .. automodule:: pycafe.build_matrices.bc_ops
    :members:
 
