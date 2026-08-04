@@ -159,9 +159,12 @@ def _face_values(faces, nodal_values):
 # ------------------------------------------------------------
 #  FIGURE SET-UP
 # ------------------------------------------------------------
-def _setup_axes(nodes, faces, elev, azim, figsize):
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_subplot(projection="3d")
+def _setup_axes(nodes, faces, elev, azim, figsize, ax=None):
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(projection="3d")
+    else:
+        fig = ax.get_figure()
 
     coords = np.asarray(nodes, dtype=float)
     if coords.shape[1] == 2:
@@ -280,6 +283,8 @@ def plot_pressure_3d(
     figsize=(7, 6),
     clip=None,
     faces=None,
+    ax=None,
+    colorbar=True,
     show=True,
 ):
     """
@@ -315,6 +320,13 @@ def plot_pressure_3d(
         Pre-extracted faces (see :func:`extract_surface_faces`), to avoid
         re-extracting them on repeated calls. Takes precedence over
         ``clip``.
+    ax : Axes3D, optional
+        Draw into an existing 3D axes instead of creating a figure. Use
+        it to put the cavity next to the structure in one figure; then
+        ``figsize`` is ignored and ``show`` should be left to the caller.
+    colorbar : bool, optional
+        Attach a colour bar to the axes. Turn it off when several panels
+        share one scale.
     show : bool, optional
         Call ``plt.show()`` before returning.
 
@@ -331,12 +343,13 @@ def plot_pressure_3d(
         clim = _default_clim(values, part)
     norm = colors.Normalize(vmin=clim[0], vmax=clim[1])
 
-    fig, ax, coll = _setup_axes(nodes, faces, elev, azim, figsize)
+    fig, ax, coll = _setup_axes(nodes, faces, elev, azim, figsize, ax=ax)
     coll.set_facecolor(cmap(norm(_face_values(faces, values))))
 
-    mappable = cm.ScalarMappable(norm=norm, cmap=cmap)
-    mappable.set_array([])
-    fig.colorbar(mappable, ax=ax, shrink=0.7, label=_label(part))
+    if colorbar:
+        mappable = cm.ScalarMappable(norm=norm, cmap=cmap)
+        mappable.set_array([])
+        fig.colorbar(mappable, ax=ax, shrink=0.7, label=_label(part))
     ax.set_title(title or f"Pressure field ({part})")
 
     if show:
