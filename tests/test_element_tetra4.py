@@ -341,10 +341,9 @@ class TestCavityModes:
         """
         Six tetrahedra per brick against one brick, same node set.
 
-        The two agree closely on the modes that vary along a single
-        axis; on the (1,1,0) mode, which varies along two, the constant
-        gradient of the tetrahedron costs a factor of about two. This is
-        the trade-off worth knowing before choosing a tetrahedral mesh.
+        A regression guard on the relative behaviour of the two
+        elements, not a statement about which to use: the bounds below
+        are tolerances chosen around what the code currently does.
         """
         nx, ny, nz = 12, 8, 6
         nodes_t, el_t = make_box_mesh_tetra4(self.LX, self.LY, self.LZ,
@@ -365,12 +364,10 @@ class TestCavityModes:
         err_t = np.abs(f_t - exact) / exact
         err_h = np.abs(f_h - exact) / exact
 
-        # the two axis-aligned modes: same accuracy
+        # the two axis-aligned modes agree between the elements
         assert np.allclose(f_t[:2], f_h[:2], rtol=1e-3)
-        # the diagonal mode: the tetrahedra are the worse of the two,
-        # by a factor between 1.5 and 4
+        # on the (1,1,0) mode they do not; the ratio is bracketed loosely
         assert 1.5 < err_t[2] / err_h[2] < 4.0
-        # and both are still within 2% of the analytical value
         assert err_t[2] < 0.02
 
     def test_uniform_pressure_is_in_the_kernel_of_the_global_K(self):

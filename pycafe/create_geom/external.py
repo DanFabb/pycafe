@@ -262,8 +262,7 @@ def cad_to_mesh(
     recombine : bool, optional
         Ask Gmsh to recombine into quads/hexes. It succeeds only on
         geometry that allows it; otherwise the mesh stays tetrahedral,
-        which assembles as CTETRA4 — at the cost of six elements per
-        brick and a worse pressure gradient.
+        which assembles as CTETRA4.
     dim : int, optional
         Dimension to mesh.
     validate : bool, optional

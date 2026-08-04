@@ -180,22 +180,10 @@ def element_matrices_tetra4(x_e, c):
 
     Notes
     -----
-    The pressure gradient is constant inside the element, so Felippa's
-    warning about stress analysis (§15.2) carries over to the acoustic
-    **particle velocity** and the intensity, which come out piecewise
-    constant and are the quantities to distrust here.
-
-    On the pressure the element is respectable but not free. Splitting a
-    box into six tetrahedra per brick and comparing against
-    :func:`element_matrices_hex8` on the *same node set*, both converge
-    at ``O(h^2)`` and the axis-aligned cavity modes agree to a few
-    hundredths of a percent; the modes that vary along more than one
-    axis are about **two to three times less accurate** with
-    tetrahedra — a (1,1,0) mode of a 1.0 x 0.7 x 0.5 m box came out at
-    1.29% against the brick's 0.53% on the same 819 nodes. The element
-    count is six times larger for that node count, so the assembly is
-    slower too. Use it where a hexahedral mesh is not available, which
-    on real geometry is most of the time.
+    The shape function gradients are constant over the element (15.10),
+    so the pressure gradient — and with it the particle velocity and the
+    intensity — is constant inside each tetrahedron. Felippa notes the
+    consequence for stress analysis in §15.2.
 
     See Also
     --------
