@@ -46,6 +46,7 @@ def run_analysis(
             velocity_operator=system.get("velocity_red_op"),
             impedance_operator=system.get("C_red_op"),
             source_operator=system.get("source_red_op"),
+            radiation_operator=system.get("radiation_red_op"),
         )
 
     # NON-INTERACTIVE: DIRECT ANALYSIS (TEST / CI SAFE)
@@ -70,6 +71,7 @@ def run_analysis(
         velocity_operator=system.get("velocity_red_op"),
         impedance_operator=system.get("C_red_op"),
         source_operator=system.get("source_red_op"),
+        radiation_operator=system.get("radiation_red_op"),
     )
 
     p_full = expand_to_full(

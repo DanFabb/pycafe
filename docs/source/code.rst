@@ -72,6 +72,9 @@ operations.
 .. automodule:: pycafe.build_matrices.bc_ops
    :members:
 
+.. automodule:: pycafe.build_matrices.bc_radiation
+   :members:
+
 ---
 
 Vibroacoustic coupling

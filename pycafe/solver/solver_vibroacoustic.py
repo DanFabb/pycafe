@@ -73,6 +73,7 @@ def build_coupled_blocks(
     pressure_zero_nodes0=None,
     C_a=None,
     eta_s=0.0,
+    radiation_operator=None,
 ):
     """
     Reduce the two domains and the coupling to the coupled unknowns.
@@ -91,13 +92,20 @@ def build_coupled_blocks(
         numbering, e.g. from an anechoic or lined boundary.
     eta_s : float, optional
         Structural loss factor: the stiffness becomes ``Ks (1 + j eta)``.
+    radiation_operator : SphericalRadiationOperator, optional
+        Spherical wave radiation on the **full** node numbering, from
+        :func:`~pycafe.boundary_condition.acoustic_bc.build_radiation_operator`.
+        It is reduced here to the retained fluid nodes and kept as an
+        operator, not folded into ``Ca``: ``jk + 1/r`` is part stiffness
+        and part damping, so no constant ``C`` can stand for it.
 
     Returns
     -------
     blocks : dict
         ``Ks, Ms, Ka, Ma, Ca, Kc`` reduced to the coupled unknowns,
         plus ``idx_s`` (global structural DOF indices), ``idx_a``
-        (0-based fluid node indices), ``n_s``, ``n_a`` and ``rho0``.
+        (0-based fluid node indices), ``n_s``, ``n_a``, ``rho0`` and
+        ``radiation`` (the reduced operator, or None).
 
     Raises
     ------
@@ -142,6 +150,9 @@ def build_coupled_blocks(
         "n_s": idx_s.size,
         "n_a": idx_a.size,
         "rho0": rho0,
+        "radiation": (None if radiation_operator is None
+                      or radiation_operator.is_empty
+                      else radiation_operator.reduce(idx_a)),
     }
 
 
@@ -166,6 +177,11 @@ def coupled_dynamic_stiffness(blocks, omega):
             + 1j * omega * blocks["Ca"]
             - w2 * blocks["Ma"])
 
+    # The radiation condition is neither stiffness nor damping: (jk + 1/r)
+    # mixes the two, so its matrix is added whole.
+    if blocks.get("radiation") is not None:
+        A_aa = A_aa + blocks["radiation"].matrix(omega)
+
     # Off-diagonal blocks: pressure -> structural force, and structural
     # acceleration -> acoustic source. They are transposes of each other
     # up to -rho0 omega^2, never equal: that is the asymmetry of the
@@ -185,6 +201,7 @@ def solve_vibroacoustic_frequency_sweep(
     pressure_zero_nodes0=None,
     C_a=None,
     eta_s=0.0,
+    radiation_operator=None,
     blocks=None,
     verbose=True,
 ):
@@ -205,8 +222,10 @@ def solve_vibroacoustic_frequency_sweep(
         ``(n_s,)``, applied at every frequency, or ``(n_s, N_freq)``.
     F_a : ndarray, optional
         Acoustic source on the retained fluid nodes, same shapes.
-    pressure_zero_nodes0, C_a, eta_s : optional
-        Passed to :func:`build_coupled_blocks`.
+    pressure_zero_nodes0, C_a, eta_s, radiation_operator : optional
+        Passed to :func:`build_coupled_blocks`. An incident field
+        declared on the radiation boundary is added to the acoustic
+        right-hand side on top of ``F_a``.
     blocks : dict, optional
         Pre-reduced blocks, to skip the reduction on repeated sweeps.
     verbose : bool, optional
@@ -230,6 +249,7 @@ def solve_vibroacoustic_frequency_sweep(
         pressure_zero_nodes0=pressure_zero_nodes0,
         C_a=C_a,
         eta_s=eta_s,
+        radiation_operator=radiation_operator,
     )
     n_s, n_a = blocks["n_s"], blocks["n_a"]
     frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
@@ -240,8 +260,12 @@ def solve_vibroacoustic_frequency_sweep(
 
     x = np.zeros((n_s + n_a, n_f), dtype=complex)
     for i, freq in enumerate(frequencies):
-        A = coupled_dynamic_stiffness(blocks, 2.0 * np.pi * freq)
-        rhs = np.concatenate([f_s[:, i], f_a[:, i]])
+        omega = 2.0 * np.pi * freq
+        A = coupled_dynamic_stiffness(blocks, omega)
+        rhs_a = f_a[:, i]
+        if blocks.get("radiation") is not None:
+            rhs_a = rhs_a + blocks["radiation"].load(omega)
+        rhs = np.concatenate([f_s[:, i], rhs_a])
         x[:, i] = spsolve(A.tocsc(), rhs)
         if verbose:
             print(f"  [{i + 1}/{n_f}] f = {freq:8.2f} Hz  "

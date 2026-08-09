@@ -19,6 +19,7 @@ def run_acoustic_analysis(
     velocity_operator=None,
     impedance_operator=None,
     source_operator=None,
+    radiation_operator=None,
 ):
     """
     Launch an interactive acoustic analysis on a reduced FEM system.
@@ -170,6 +171,7 @@ def run_acoustic_analysis(
             velocity_operator=velocity_operator,
             impedance_operator=impedance_operator,
             source_operator=source_operator,
+            radiation_operator=radiation_operator,
         )
 
         p_full = expand_to_full(

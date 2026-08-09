@@ -324,17 +324,20 @@ def solve_helmholtz_frequency_sweep(
     impedance_operator=None,
     source_operator=None,
     pml_operator=None,
+    radiation_operator=None,
 ):
     """
     Solve the acoustic Helmholtz problem over a frequency range.
 
-    Handles the three non-essential boundary conditions of the dynamic
+    Handles the four non-essential boundary conditions of the dynamic
     response:
 
     - prescribed normal velocity (Neumann), through the load vector
       ``V_n(omega) = -j rho0 omega vbar_n int N dOmega``;
     - impedance (Robin), through the boundary matrix ``C(omega)``,
       which may be frequency dependent;
+    - spherical wave radiation, through a matrix of its own and, when
+      an incident field crosses the boundary, a load vector;
     - prescribed pressure (Dirichlet), enforced by partitioning.
 
     Parameters
@@ -373,6 +376,11 @@ def solve_helmholtz_frequency_sweep(
         Pre-assembled volumetric source (monopole) operator **already
         reduced** to the free DOFs; its ``Q(omega)`` is added to the
         right-hand side.
+    radiation_operator : SphericalRadiationOperator, optional
+        Pre-assembled spherical radiation operator **already reduced**
+        to the free DOFs. Its ``matrix(omega)`` is added to the dynamic
+        stiffness and its ``load(omega)`` to the right-hand side, so an
+        incident field declared on the boundary is carried in.
 
     Returns
     -------
@@ -431,6 +439,10 @@ def solve_helmholtz_frequency_sweep(
             f_src = source_operator.at(omega)
             f_red = f_src if f_red is None else f_red + f_src
 
+        if radiation_operator is not None and not radiation_operator.is_empty:
+            f_inc = radiation_operator.load(omega)
+            f_red = f_inc if f_red is None else f_red + f_inc
+
         C_omega = (impedance_operator.at(omega)
                    if impedance_operator is not None else C_red)
 
@@ -439,6 +451,12 @@ def solve_helmholtz_frequency_sweep(
         # correction.
         A_extra = (pml_operator.matrix(omega)
                    if pml_operator is not None else None)
+
+        # The radiation condition is neither a stiffness nor a damping:
+        # (jk + 1/r) mixes the two, so it goes in whole.
+        if radiation_operator is not None and not radiation_operator.is_empty:
+            A_rad = radiation_operator.matrix(omega)
+            A_extra = A_rad if A_extra is None else A_extra + A_rad
 
         P_red[:, i] = solve_helmholtz_single_frequency(
             K_red,

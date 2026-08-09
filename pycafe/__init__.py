@@ -49,6 +49,16 @@ def AcousticBC(*args, **kwargs):
     return _AcousticBC(*args, **kwargs)
 
 
+def IncidentPlaneWave(*args, **kwargs):
+    """Plane wave crossing a radiation boundary; see
+    :class:`pycafe.boundary_condition.acoustic_bc.IncidentPlaneWave`."""
+    from pycafe.boundary_condition.acoustic_bc import (
+        IncidentPlaneWave as _IncidentPlaneWave,
+    )
+
+    return _IncidentPlaneWave(*args, **kwargs)
+
+
 def assign_boundary_conditions(*args, **kwargs):
     from pycafe.core.assign_boundary_conditions import (
         assign_boundary_conditions as _assign_boundary_conditions,

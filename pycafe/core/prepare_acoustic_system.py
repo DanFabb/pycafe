@@ -4,6 +4,7 @@ from pycafe.boundary_condition.acoustic_bc import (
     AcousticBC,
     check_node_index,
     build_impedance_operator,
+    build_radiation_operator,
     build_source_operator,
     build_velocity_operator,
 )
@@ -145,6 +146,10 @@ def prepare_acoustic_system(
             Global and reduced normal-velocity load operators.
         - ``source_op`` / ``source_red_op`` : AcousticSourceOperator
             Global and reduced volumetric source (monopole) operators.
+        - ``radiation_op`` / ``radiation_red_op`` : SphericalRadiationOperator
+            Global and reduced spherical wave radiation operators; they
+            contribute a matrix, and a load when an incident field was
+            declared on the boundary.
         - ``K_red`` : sparse matrix  
             Reduced stiffness matrix.
         - ``M_red`` : sparse matrix  
@@ -254,6 +259,19 @@ def prepare_acoustic_system(
         boundary_dim=boundary_dim,
     )
 
+    # 2b') Spherical wave radiation -> a matrix and, with an incident
+    # field, a load vector. Not an impedance: see
+    # pycafe.build_matrices.bc_radiation.
+    radiation_op = build_radiation_operator(
+        bc,
+        nodes=nodes,
+        c0=c0,
+        boundaries=boundaries,
+        groups=groups,
+        elements=elements,
+        boundary_dim=boundary_dim,
+    )
+
     # 2c) Volumetric sources (monopoles) -> load vector Q
     # Volumetric sources belong to the physical fluid: integrating a
     # distributed source over the absorbing layer as well would turn the
@@ -347,6 +365,8 @@ def prepare_acoustic_system(
         "velocity_red_op": velocity_op.reduce(idx_free),
         "source_op": source_op,
         "source_red_op": source_op.reduce(idx_free),
+        "radiation_op": radiation_op,
+        "radiation_red_op": radiation_op.reduce(idx_free),
         "pml_op": pml_op,
         "pml_red_op": None if pml_op is None else pml_op.reduce(idx_free),
         "bc": bc,

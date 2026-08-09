@@ -5,13 +5,16 @@
 #
 #     (K + j omega C - omega^2 M) p = Q + V_n + P .
 #
-# Three of the four boundary condition types live here:
+# Four of the five boundary condition types live here:
 #
 #   * prescribed normal velocity (Neumann)  -> V_n, a right-hand side
 #   * impedance / admittance     (Robin)    -> C, a boundary matrix
+#   * spherical wave radiation              -> a matrix of its own, plus a
+#                                              right-hand side when an
+#                                              incident field crosses it
 #   * rigid wall                            -> nothing (homogeneous Neumann)
 #
-# The fourth, prescribed pressure (Dirichlet), is an essential condition
+# The fifth, prescribed pressure (Dirichlet), is an essential condition
 # handled by direct assignment and DOF elimination in
 # :mod:`pycafe.build_matrices.bc_ops`; it is only *described* here.
 #
@@ -154,6 +157,77 @@ class ImpedanceBC:
 
 
 @dataclass
+class IncidentPlaneWave:
+    """
+    A plane wave arriving from outside the truncated domain.
+
+    Declared as part of a :class:`SphericalRadiationBC`, since it is
+    that boundary which lets it in: the wave is not a source inside the
+    mesh but a field the boundary has to stop absorbing.
+
+    Attributes
+    ----------
+    p0 : complex
+        Pressure amplitude [Pa].
+    direction : array-like of shape (3,)
+        Propagation direction; normalized on use, so any non-zero
+        vector will do. With the ``exp(+j omega t)`` convention the
+        wave is ``p0 exp(-j k d.x)``.
+
+    Examples
+    --------
+    The COMSOL convention, from two angles:
+
+    >>> import numpy as np
+    >>> theta, phi = 4 * np.pi / 6, -np.pi / 6
+    >>> wave = IncidentPlaneWave(p0=1.0, direction=(
+    ...     np.sin(theta) * np.cos(phi),
+    ...     np.sin(theta) * np.sin(phi),
+    ...     np.cos(theta)))
+    >>> round(float(np.linalg.norm(wave.direction)), 12)
+    1.0
+    """
+    p0: complex = 1.0
+    direction: Sequence[float] = (0.0, 0.0, 1.0)
+
+    def __post_init__(self):
+        self.direction = np.asarray(self.direction, dtype=float).reshape(3)
+        norm = float(np.linalg.norm(self.direction))
+        if norm == 0.0:
+            raise ValueError("The incident direction cannot be the zero vector.")
+        self.direction = self.direction / norm
+
+
+@dataclass
+class SphericalRadiationBC:
+    """
+    Spherical wave radiation on a spherical artificial boundary.
+
+    ``dp/dn + (jk + 1/r) p = 0`` lets an outgoing spherical wave leave
+    the mesh. Compared with :meth:`AcousticBC.add_anechoic`, which is
+    the ``r -> infinity`` limit of the same condition, it keeps the
+    ``1/r`` term and so tolerates a boundary placed close to the body.
+
+    Attributes
+    ----------
+    selection : list of str or list of int
+        Physical-group names, or 1-based node tags.
+    centre : array-like of shape (3,), optional
+        Centre of the sphere. Fitted from the boundary nodes when
+        omitted, which is what the geometry says anyway.
+    incident : IncidentPlaneWave, optional
+        Field arriving from outside; adds a load vector, not a matrix.
+
+    See Also
+    --------
+    pycafe.build_matrices.bc_radiation : Where the integrals are done.
+    """
+    selection: Selection
+    centre: Sequence[float] = None
+    incident: IncidentPlaneWave = None
+
+
+@dataclass
 class PressureBC:
     """Prescribed pressure (Dirichlet) on a portion of the boundary."""
     selection: Selection
@@ -215,6 +289,9 @@ class AcousticBC:
         Boundaries with a prescribed non-zero pressure.
     impedance : list of ImpedanceBC
         Boundaries with an impedance condition.
+    spherical_radiation : list of SphericalRadiationBC
+        Spherical boundaries that let outgoing waves out, and let a
+        declared incident field in.
     velocity : list of VelocityBC
         Boundaries with a prescribed normal velocity.
     point_pressure : list of PointPressureBC
@@ -232,6 +309,9 @@ class AcousticBC:
     pressure_zero: List[str] = field(default_factory=list)
     pressure_constant: List[PressureBC] = field(default_factory=list)
     impedance: List[ImpedanceBC] = field(default_factory=list)
+    spherical_radiation: List[SphericalRadiationBC] = field(
+        default_factory=list
+    )
     velocity: List[VelocityBC] = field(default_factory=list)
     point_pressure: List[PointPressureBC] = field(default_factory=list)
     monopoles: List[MonopoleSource] = field(default_factory=list)
@@ -294,12 +374,75 @@ class AcousticBC:
         See Also
         --------
         add_impedance : General (possibly frequency-dependent) liner.
+        add_spherical_radiation : The same condition with the ``1/r``
+            term kept, for a boundary that is a sphere.
         """
         return self.add_impedance(selection, 1.0)
 
     # Same condition, spelled the way the radiation problem names it.
     add_radiation = add_anechoic
     add_non_reflecting = add_anechoic
+
+    def add_spherical_radiation(self, selection, *, centre=None,
+                                incident=None):
+        """
+        Add a spherical wave radiation condition on a spherical boundary.
+
+        The condition is
+
+        .. math::
+            \\frac{\\partial p}{\\partial n}
+            + \\left(jk + \\frac{1}{r}\\right) p = 0 ,
+
+        with ``r`` measured from the centre of the sphere. Against
+        :meth:`add_anechoic`, which is its ``r -> infinity`` limit, it
+        keeps the curvature term, so a wave leaving a compact body
+        crosses the boundary without being partly reflected even when
+        the boundary is only a wavelength or two away.
+
+        It is not an impedance and is not stored as one: it contributes
+        its own matrix, ``int_S N (jk + 1/r) N dS``. The distinction
+        matters as soon as an incident field is declared, since that
+        adds a load vector no impedance can carry.
+
+        Parameters
+        ----------
+        selection : str or list of str or list of int
+            The spherical boundary: physical-group names, or 1-based
+            node tags.
+        centre : array-like of shape (3,), optional
+            Centre of the sphere. Fitted from the boundary nodes when
+            omitted; give it when the mesh covers only part of a sphere
+            and the fit would be poorly conditioned.
+        incident : IncidentPlaneWave, optional
+            A wave arriving from outside. The boundary then carries the
+            inhomogeneous form of the condition, and the solution is
+            the **total** field, incident plus scattered.
+
+        Examples
+        --------
+        >>> bc = AcousticBC().add_spherical_radiation(
+        ...     "radiation", incident=IncidentPlaneWave(p0=1.0,
+        ...                                             direction=(1, 0, 0)))
+        >>> len(bc.spherical_radiation)
+        1
+
+        Notes
+        -----
+        The outward normal is taken from the geometry,
+        ``n = (x - centre)/r``, not from the winding of the boundary
+        faces: on a sphere the outward direction is known, and reading
+        it from the mesh would make the result depend on the mesher.
+
+        See Also
+        --------
+        add_anechoic : The plane-wave approximation.
+        pycafe.build_matrices.bc_radiation.SphericalRadiation
+        """
+        self.spherical_radiation.append(
+            SphericalRadiationBC(_as_list(selection), centre, incident)
+        )
+        return self
 
     def add_pressure(self, selection, value=0.0):
         """Add a prescribed pressure (zero-pressure if ``value == 0``)."""
@@ -567,6 +710,110 @@ class ImpedanceOperator:
         return ImpedanceOperator(idx_free.size, terms, self.rho)
 
 
+class SphericalRadiationOperator:
+    """
+    Everything the spherical radiation boundaries contribute.
+
+    Unlike :class:`ImpedanceOperator`, which only feeds ``C``, this one
+    has a foot on both sides of the equation: :meth:`matrix` adds to the
+    dynamic stiffness, :meth:`load` adds to the right-hand side when an
+    incident field crosses the boundary. Neither can be written as the
+    other, which is why the condition is its own operator.
+
+    Parameters
+    ----------
+    n_dof : int
+        Size of the acoustic system.
+    terms : list of SphericalRadiation
+        One per radiation boundary, already assembled.
+    idx : ndarray of int, optional
+        Retained degrees of freedom, set by :meth:`reduce`.
+
+    See Also
+    --------
+    build_radiation_operator : Build one from an :class:`AcousticBC`.
+    pycafe.build_matrices.bc_radiation.SphericalRadiation
+    """
+
+    def __init__(self, n_dof, terms, idx=None):
+        self.n_dof = int(n_dof)
+        self.terms = list(terms)
+        self.idx = None if idx is None else np.asarray(idx, dtype=int)
+
+    @property
+    def size(self):
+        """Number of unknowns the operator is expressed on."""
+        return self.n_dof if self.idx is None else int(self.idx.size)
+
+    @property
+    def shape(self):
+        return (self.size, self.size)
+
+    @property
+    def is_empty(self):
+        """True when no radiation boundary is active."""
+        return len(self.terms) == 0
+
+    @property
+    def has_incident_field(self):
+        """True when at least one boundary carries an incident wave."""
+        return any(term.incident is not None for term in self.terms)
+
+    def matrix(self, omega):
+        """
+        ``sum_b int_S N (jk + 1/r) N dS`` at one angular frequency.
+
+        Returns
+        -------
+        scipy.sparse.csr_matrix of complex
+            Sized on the retained unknowns after :meth:`reduce`.
+        """
+        from scipy.sparse import csr_matrix
+
+        A = csr_matrix((self.n_dof, self.n_dof), dtype=complex)
+        for term in self.terms:
+            A = A + term.matrix(omega)
+        if self.idx is not None:
+            A = A[np.ix_(self.idx, self.idx)]
+        return A.tocsr()
+
+    def load(self, omega):
+        """
+        Right-hand side of the incident field, zero without one.
+
+        Returns
+        -------
+        ndarray of complex
+            Sized on the retained unknowns after :meth:`reduce`.
+        """
+        f = np.zeros(self.n_dof, dtype=complex)
+        for term in self.terms:
+            f += term.load(omega)
+        return f if self.idx is None else f[self.idx]
+
+    def incident_field(self, nodes, omega):
+        """
+        The incident wave sampled at the mesh nodes, on all boundaries.
+
+        The scattered field is the computed solution minus this, which
+        is the comparison a scattering study is usually after.
+        """
+        carriers = [t for t in self.terms if t.incident is not None]
+        if not carriers:
+            raise ValueError("No boundary carries an incident field.")
+        field = carriers[0].incident_field(nodes, omega)
+        for term in carriers[1:]:
+            field = field + term.incident_field(nodes, omega)
+        return field
+
+    def reduce(self, idx_free):
+        """Restrict the operator to the retained (free) degrees of freedom."""
+        idx_free = np.asarray(idx_free, dtype=int)
+        if self.idx is not None:
+            idx_free = self.idx[idx_free]
+        return SphericalRadiationOperator(self.n_dof, self.terms, idx_free)
+
+
 class NormalVelocityOperator:
     """
     Frequency-dependent normal-velocity load vector ``V_n(omega)``.
@@ -752,6 +999,96 @@ def build_impedance_operator(
         terms.append((S, admittance))
 
     return ImpedanceOperator(n_dof, terms, rho)
+
+
+def build_radiation_operator(
+    bc,
+    *,
+    nodes,
+    c0,
+    boundaries=None,
+    groups=None,
+    elements=None,
+    boundary_dim=None,
+    spread_tolerance=0.05,
+):
+    """
+    Assemble the spherical radiation operator from a BC description.
+
+    Parameters
+    ----------
+    bc : AcousticBC or legacy tuple
+        Boundary condition description.
+    nodes : ndarray of shape (N, 2) or (N, 3)
+        Nodal coordinates.
+    c0 : float
+        Speed of sound, which turns ``omega`` into ``k``.
+    boundaries : dict, optional
+        ``{name: [1-based node tags]}`` from the mesh loader.
+    groups : dict, optional
+        Physical groups with connectivity (``load_mesh_with_groups``).
+    elements : dict, optional
+        Mesh connectivity, used to find the boundary faces.
+    boundary_dim : int, optional
+        1 for edges, 2 for faces. Inferred from ``elements`` if omitted.
+    spread_tolerance : float, optional
+        How far the boundary may stray from a sphere before a warning is
+        raised, as a fraction of the radius. Default 0.05. A faceted
+        mesh of a sphere stays well inside it; a boundary that is not a
+        sphere does not, and there the ``1/r`` term is guesswork.
+
+    Returns
+    -------
+    SphericalRadiationOperator
+
+    Warns
+    -----
+    RuntimeWarning
+        If a boundary deviates from its fitted sphere by more than
+        ``spread_tolerance``.
+
+    See Also
+    --------
+    SphericalRadiationOperator, AcousticBC.add_spherical_radiation
+    """
+    import warnings
+
+    from pycafe.build_matrices.bc_radiation import SphericalRadiation
+
+    bc = AcousticBC.from_legacy(bc)
+    n_dof = np.asarray(nodes).shape[0]
+
+    terms = []
+    for entry in bc.spherical_radiation:
+        faces = resolve_boundary_faces(
+            entry.selection,
+            nodes=nodes,
+            boundaries=boundaries,
+            groups=groups,
+            elements=elements,
+            boundary_dim=boundary_dim,
+        )
+        if not faces:
+            continue
+        term = SphericalRadiation(
+            nodes, faces, n_dof,
+            c0=c0, centre=entry.centre, incident=entry.incident,
+        )
+        if term.spread > spread_tolerance:
+            warnings.warn(
+                f"The radiation boundary {entry.selection} strays from the "
+                f"sphere of centre {np.round(term.centre, 6).tolist()} and "
+                f"radius {term.radius:.4g} by {100 * term.spread:.1f}% of "
+                f"that radius. The 1/r term of the spherical condition "
+                f"assumes it is a sphere; on this boundary it is an "
+                f"approximation. Use add_anechoic, or a PML, if the shape "
+                f"is not spherical.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        terms.append(term)
+
+    return SphericalRadiationOperator(n_dof, terms)
 
 
 def build_velocity_operator(
