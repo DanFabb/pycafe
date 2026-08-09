@@ -19,6 +19,9 @@ Core workflow
 
 The core workflow utilities implement the main analysis pipeline.
 
+.. automodule:: pycafe.core.model_spec
+   :members:
+
 .. automodule:: pycafe.core.load_fluid
    :members:
 
@@ -74,10 +77,14 @@ operations.
 Vibroacoustic coupling
 ----------------------
 
-Fluid-structure coupling on a conforming mesh, and the solvers of the
-fully coupled (unsymmetric) system.
+Fluid-structure coupling on a conforming mesh, its fallback when the two
+sides are meshed independently, and the solvers of the fully coupled
+(unsymmetric) system.
 
 .. automodule:: pycafe.build_matrices.coupling
+   :members:
+
+.. automodule:: pycafe.build_matrices.coupling_nonconforming
    :members:
 
 .. automodule:: pycafe.solver.solver_vibroacoustic
@@ -92,6 +99,9 @@ Scriptable mesh generators and Gmsh mesh loading, including physical
 groups with element connectivity.
 
 .. automodule:: pycafe.create_geom.create_geom
+   :members:
+
+.. automodule:: pycafe.create_geom.merge
    :members:
 
 .. automodule:: pycafe.create_geom.visualize_mesh

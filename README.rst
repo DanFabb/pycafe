@@ -81,6 +81,57 @@ pyCAFE:
 
 ---
 
+Standardized input
+------------------
+
+The steps above can also be stated once, as a ``ModelSpec``: where the
+geometry comes from, what the materials are, and the highest frequency of
+interest. The element size is *derived* from that frequency,
+``h = c0 / (f_max * n_lambda)`` with at least 10 elements per wavelength, so a
+model is never quietly run on a mesh too coarse for the band it is swept over.
+
+.. code-block:: python
+
+    from pycafe.core.model_spec import (
+        AIR, CadFile, Library, MeshFile, ModelSpec, aluminium, build_model,
+    )
+
+    # Geometry we build, from parameters
+    spec = ModelSpec(
+        geometry=Library("box_with_plate", Lx=0.4, Ly=0.3, Lz=0.5),
+        fluid=AIR,
+        structure=aluminium(t=2e-3, support="clamped"),
+        f_max=500.0,
+    )
+    print(spec.describe())
+
+    model = build_model(spec)      # mesh -> validate -> assemble
+    system = model["system"]
+
+Geometry the user brings in is the same call with a different source. A CAD
+file carries no roles, so they are given explicitly, after asking the file what
+is in it:
+
+.. code-block:: python
+
+    from pycafe import inspect_cad
+
+    inspect_cad("Geom/Tubo_1m_1m.stp")     # tags, sizes, bounding boxes
+    #   dim 3  tag  1   volume 3.000e+00   bbox 3.000 x 1.000 x 1.000
+    #   dim 2  tag  5   area   1.000e+00   bbox 1.000 x 1.000 x 0.000
+
+    spec = ModelSpec(
+        geometry=CadFile("Geom/Tubo_1m_1m.stp", fluid=[1], structure=[5],
+                         units="auto"),     # mm files are detected and scaled
+        structure=aluminium(t=2e-3),
+        f_max=400.0,
+    )
+
+and a mesh that already exists is ``MeshFile("from_ansys.msh",
+rename={"AIR": "fluid", "SKIN": "plate"})``.
+
+---
+
 Project structure
 -----------------
 
