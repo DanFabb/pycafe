@@ -24,8 +24,13 @@ The short version:
     nodes, elements, boundaries, groups = load_mesh_with_groups(str(msh))
 
 and, for geometry that comes from somewhere else,
-:func:`~pycafe.create_geom.external.cad_to_mesh` or
+:func:`~pycafe.create_geom.external.inspect_cad` to see what a STEP file
+holds, then :func:`~pycafe.create_geom.external.cad_to_mesh` or
 :func:`~pycafe.create_geom.external.retag_mesh`.
+
+To state a whole model in one place — geometry, materials and the
+frequency that sizes the mesh — see
+:class:`pycafe.core.model_spec.ModelSpec`.
 
 :func:`~pycafe.create_geom.conventions.describe_conventions` prints the
 naming contract at any time.
@@ -44,9 +49,12 @@ from .external import (
     EntityInfo,
     TagRule,
     assign_groups,
+    by_tag,
     cad_to_mesh,
     everything,
+    import_cad,
     in_box,
+    inspect_cad,
     largest,
     list_groups,
     on_plane,
@@ -63,6 +71,7 @@ from .library import (
     duct_with_flush_plate,
     plate,
 )
+from .preview import plot_geometry
 from .validation import MeshReport, describe_mesh, validate_mesh
 from .visualize_mesh import (
     NodeIndex,
@@ -77,13 +86,16 @@ __all__ = [
     "role_of", "names_for", "find_group", "describe_conventions",
     # workflow
     "GmshModel",
+    # preview
+    "plot_geometry",
     # library
     "GEOMETRIES", "build",
     "box_cavity", "box_with_plate", "duct_2d", "duct_with_flush_plate",
     "plate",
     # external geometry
     "TagRule", "EntityInfo", "assign_groups", "cad_to_mesh",
-    "on_plane", "in_box", "largest", "everything", "rest",
+    "import_cad", "inspect_cad",
+    "on_plane", "in_box", "by_tag", "largest", "everything", "rest",
     "list_groups", "retag_mesh",
     # validation
     "MeshReport", "validate_mesh", "describe_mesh",

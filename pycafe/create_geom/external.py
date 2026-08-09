@@ -119,6 +119,27 @@ def in_box(lo, hi, *, dim, name):
     )
 
 
+def by_tag(dim, tags, name):
+    """
+    The entities with these CAD tags, named by hand.
+
+    The counterpart of :func:`inspect_cad`: look at what the file
+    contains, then say which tag is what. Nothing is guessed, so this is
+    the rule to use when the geometry is known but not easy to describe
+    geometrically.
+
+    Parameters
+    ----------
+    dim : int
+        Entity dimension (3 volume, 2 surface, 1 curve).
+    tags : int or sequence of int
+    name : str
+        Physical group name to give them.
+    """
+    wanted = {int(t) for t in (tags if np.ndim(tags) else [tags])}
+    return TagRule(name=name, dim=dim, where=lambda i: i.tag in wanted)
+
+
 def largest(dim, name):
     """The single biggest entity of that dimension — usually the fluid volume."""
     return TagRule(name=name, dim=dim, select="largest")
@@ -224,6 +245,118 @@ def assign_groups(model, rules, *, strict=True):
     return assigned
 
 
+def import_cad(model, cad_path, units="auto", *, verbose=False):
+    """
+    Import a CAD file into an open model and bring it to metres.
+
+    pyCAFE works in SI, and most CAD exports are in millimetres, so the
+    file has to be scaled before anything else: an unscaled millimetre
+    duct is a 3000 m one, and every frequency that follows is wrong by
+    three orders of magnitude.
+
+    Parameters
+    ----------
+    model : GmshModel
+        Open model (inside its ``with`` block).
+    cad_path : str or Path
+    units : {"auto", "m", "mm", "cm"}, optional
+        ``"auto"`` calls a model whose largest extent exceeds 100 units
+        a millimetre one — no CAD file of a room-sized object is
+        hundreds of metres across.
+    verbose : bool, optional
+
+    Returns
+    -------
+    float
+        The factor applied.
+    """
+    cad_path = pathlib.Path(cad_path)
+    if not cad_path.exists():
+        raise FileNotFoundError(f"No CAD file at {cad_path}.")
+
+    model.occ.importShapes(str(cad_path))
+    model.occ.synchronize()
+
+    if units == "auto":
+        bbox = np.array(model.model.getBoundingBox(-1, -1), dtype=float)
+        scale = 1e-3 if float((bbox[3:] - bbox[:3]).max()) > 100.0 else 1.0
+    else:
+        try:
+            scale = {"m": 1.0, "mm": 1e-3, "cm": 1e-2}[units]
+        except KeyError:
+            raise ValueError(
+                f"units must be 'auto', 'm', 'mm' or 'cm', not {units!r}."
+            ) from None
+
+    if scale != 1.0:
+        model.occ.dilate(model.model.getEntities(), 0, 0, 0,
+                         scale, scale, scale)
+        model.occ.synchronize()
+    if verbose:
+        print(f"{cad_path.name} imported, scaled by {scale:g} to metres")
+    return scale
+
+
+def inspect_cad(cad_path, *, units="auto", dims=(3, 2), verbose=True):
+    """
+    List what is inside a CAD file, so its entities can be named.
+
+    The first half of the STEP workflow: a STEP file has no notion of
+    fluid or structure, so before meshing it one has to see which solid
+    and which face are which. The tags printed here are the ones to
+    hand to :func:`by_tag` or to
+    :class:`~pycafe.core.model_spec.CadFile`.
+
+    Parameters
+    ----------
+    cad_path : str or Path
+    units : {"auto", "m", "mm", "cm"}, optional
+        Passed to :func:`import_cad`; the sizes reported are in metres
+        after scaling.
+    dims : sequence of int, optional
+        Dimensions to list. Default volumes and surfaces.
+    verbose : bool, optional
+        Print the table. Default True.
+
+    Returns
+    -------
+    dict
+        ``{dim: [EntityInfo, ...]}``, sorted by decreasing size.
+
+    Examples
+    --------
+    >>> inspect_cad("Geom/Tubo_1m_1m.stp")           # doctest: +SKIP
+    Geom/Tubo_1m_1m.stp  (scaled by 0.001 to metres)
+      dim 3  tag   1   volume 3.000e+00   bbox 3.000 x 1.000 x 1.000 ...
+    """
+    cad_path = pathlib.Path(cad_path)
+    found = {}
+    with GmshModel(cad_path.stem) as m:
+        scale = import_cad(m, cad_path, units)
+        for dim in dims:
+            infos = [_entity_info(m.gmsh, dim, tag)
+                     for _d, tag in m.model.getEntities(dim)]
+            found[dim] = sorted(infos, key=lambda i: -(i.size or 0.0))
+
+    if verbose:
+        label = {3: "volume", 2: "area  ", 1: "length"}
+        print(f"{cad_path}  (scaled by {scale:g} to metres)")
+        for dim in dims:
+            for info in found[dim]:
+                lo, hi = info.bbox_min, info.bbox_max
+                extent = hi - lo
+                print(
+                    f"  dim {dim}  tag {info.tag:4d}   "
+                    f"{label.get(dim, 'size  ')} {info.size:9.3e}   "
+                    f"bbox {extent[0]:.3f} x {extent[1]:.3f} x {extent[2]:.3f}"
+                    f"   centre ({info.com[0]:.3f}, {info.com[1]:.3f}, "
+                    f"{info.com[2]:.3f})"
+                )
+        print("\nName them with by_tag(dim, tags, 'fluid') / "
+              "CadFile(..., fluid=[...], structure=[...]).")
+    return found
+
+
 def cad_to_mesh(
     cad_path,
     output_path,
@@ -236,6 +369,7 @@ def cad_to_mesh(
     order=1,
     recombine=True,
     dim=3,
+    units="m",
     validate=True,
     verbose=False,
 ):
@@ -265,6 +399,10 @@ def cad_to_mesh(
         which assembles as CTETRA4.
     dim : int, optional
         Dimension to mesh.
+    units : {"m", "auto", "mm", "cm"}, optional
+        Unit of the CAD file, converted to metres on import. Default
+        ``"m"``, i.e. take the file as it is; ``"auto"`` applies the
+        heuristic of :func:`import_cad`.
     validate : bool, optional
         Run :func:`~pycafe.create_geom.validation.validate_mesh` on the
         result. Default True.
@@ -283,8 +421,7 @@ def cad_to_mesh(
 
     with GmshModel(cad_path.stem, verbose=verbose, order=order,
                    recombine=recombine) as m:
-        m.occ.importShapes(str(cad_path))
-        m.occ.synchronize()
+        import_cad(m, cad_path, units, verbose=verbose)
 
         if mesh_size is not None:
             m.size(mesh_size)
@@ -420,10 +557,15 @@ def retag_mesh(
             )
 
         gmsh.model.removePhysicalGroups()
-        # removePhysicalGroups leaves the old names registered against
-        # their tags: re-adding a group that lands on one of those tags
-        # would inherit the name it is supposed to lose. Fresh tags plus
-        # an explicit setPhysicalName avoid that entirely.
+        # removePhysicalGroups drops the groups but not their names:
+        # Gmsh keeps every name bound to the tag it had, refuses to bind
+        # it to another tag, and writes the whole map to the file — so
+        # the ghosts survive into the next session. removePhysicalName
+        # clears the map, after which fresh tags and an explicit
+        # setPhysicalName give exactly the groups asked for.
+        for name in existing:
+            if name:
+                gmsh.model.removePhysicalName(name)
         next_tag = max((tag for _dim, tag, _e in existing.values()),
                        default=0) + 1
         kept = {}

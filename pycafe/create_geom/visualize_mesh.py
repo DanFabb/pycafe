@@ -1,11 +1,19 @@
-import gmsh
+"""
+Read a Gmsh mesh into arrays: nodes, connectivity, physical groups.
+
+Gmsh, matplotlib and tkinter are imported inside the functions that use
+them, not at module level: this module is reached by every import of
+:mod:`pycafe.create_geom`, and a headless or minimal environment must be
+able to state a model without a display or a Tk installation.
+"""
+
 import numpy as np
-import matplotlib.pyplot as plt
-from tkinter import filedialog, Tk
 import pathlib
 
 def select_msh_file():
     """Open a file dialog to select a .msh file."""
+    from tkinter import filedialog, Tk
+
     root = Tk()
     root.withdraw()
     filepath = filedialog.askopenfilename(
@@ -79,6 +87,8 @@ def extract_physical_boundaries(dims=(1, 2), node_index=None):
         array (see :class:`NodeIndex`). Required for meshes whose tags
         are not ``1..N`` in order; without it the raw tags are returned.
     """
+    import gmsh
+
     boundary_dict = {}
     for dim, tag in gmsh.model.getPhysicalGroups():
         if dim in dims:
@@ -125,10 +135,11 @@ def extract_physical_groups_with_connectivity(node_index=None):
         Connectivity is 1-based (Gmsh convention), consistent with the
         ``elements`` dict returned by :func:`load_mesh_and_elements`.
     """
+    import gmsh
+
     groups = {}
     for dim, tag in gmsh.model.getPhysicalGroups():
         name = gmsh.model.getPhysicalName(dim, tag)
-        # Gruppi senza nome o con nome duplicato: chiave univoca per dim/tag.
         if not name:
             name = f"group_dim{dim}_tag{tag}"
         elif name in groups:
@@ -167,6 +178,8 @@ def _gmsh_start(filepath, verbose):
     the output of a notebook; `verbose=False` turns that off before
     anything is read.
     """
+    import gmsh
+
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 1 if verbose else 0)
     gmsh.open(filepath)
@@ -189,6 +202,8 @@ def load_mesh_and_elements(filepath, verbose=True):
     indices of ``nodes``, not as raw Gmsh tags: sparse or unordered
     tags are remapped by :class:`NodeIndex`.
     """
+    import gmsh
+
     _gmsh_start(filepath, verbose)
 
     node_tags, node_coords, _ = gmsh.model.mesh.getNodes()
@@ -231,6 +246,8 @@ def load_mesh_with_groups(filepath, verbose=True):
     groups : dict
         Physical groups with dim, tag, nodes and per-type connectivity.
     """
+    import gmsh
+
     _gmsh_start(filepath, verbose)
 
     node_tags, node_coords, _ = gmsh.model.mesh.getNodes()
@@ -254,6 +271,8 @@ def load_mesh_with_groups(filepath, verbose=True):
     return nodes, elements, boundaries, groups
 
 def plot_2d_mesh(nodes, elements):
+    import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots()
     plotted = False
 

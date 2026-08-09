@@ -41,9 +41,7 @@ from pycafe.create_geom import (  # noqa: E402
 )
 
 
-# ---------------------------------------------------------------------------
 # Conventions
-# ---------------------------------------------------------------------------
 
 class TestConventions:
 
@@ -66,9 +64,7 @@ class TestConventions:
         assert "fluid" in text and "plate_clamp" in text
 
 
-# ---------------------------------------------------------------------------
 # GmshModel
-# ---------------------------------------------------------------------------
 
 class TestGmshModel:
 
@@ -127,9 +123,7 @@ class TestGmshModel:
         assert not any("9" in name for name in elements if "Quad" in name)
 
 
-# ---------------------------------------------------------------------------
 # Geometry library
-# ---------------------------------------------------------------------------
 
 class TestLibrary:
 
@@ -183,9 +177,7 @@ class TestLibrary:
         assert "fluid" in groups
 
 
-# ---------------------------------------------------------------------------
 # Flush-mounted panel, from CAD or from dimensions
-# ---------------------------------------------------------------------------
 
 class TestFlushPlate:
 
@@ -257,9 +249,7 @@ class TestFlushPlate:
         assert report.ok, report
 
 
-# ---------------------------------------------------------------------------
 # Validation
-# ---------------------------------------------------------------------------
 
 class TestValidation:
 
@@ -318,8 +308,14 @@ class TestValidation:
         assert report.ok
         assert any("elements per wavelength" in w for w in report.warnings)
 
-    def test_non_conforming_interface_is_caught(self, tmp_path):
-        """A plate meshed on its own does not share the fluid nodes."""
+    def test_triangular_plate_is_caught(self, tmp_path):
+        """
+        A plate group filled with triangles has no structural kernel.
+
+        (Its nodes not being shared with the fluid is only a warning
+        since the coupling can be interpolated; see
+        ``tests/test_coupling_nonconforming.py``.)
+        """
         with GmshModel("split") as m:
             box = m.occ.addBox(0, 0, 0, 1, 1, 1)
             m.occ.synchronize()
@@ -348,9 +344,7 @@ class TestValidation:
         assert report.source == "<mesh in memory>"
 
 
-# ---------------------------------------------------------------------------
 # External geometry
-# ---------------------------------------------------------------------------
 
 class TestExternal:
 
@@ -396,6 +390,23 @@ class TestExternal:
         assert "x_min" not in groups
         assert report.roles["fluid"] == "acoustic"   # the alias still works
 
+    def test_retag_keeps_the_names_it_is_not_asked_to_change(self, tmp_path):
+        """Gmsh keeps every name it has ever seen; the ghosts must not
+        survive into the file, or the next retag loses its names."""
+        path = box_cavity(0.3, 0.3, 0.3, 2, 2, 2, face_groups=False,
+                          output_path=tmp_path / "src3.msh")
+        foreign = retag_mesh(path, rename={"fluid": "AIR"},
+                             output_path=tmp_path / "foreign.msh",
+                             validate=False)
+        groups = list_groups(str(foreign), verbose=False)
+        assert set(groups) == {"AIR", "rigid_walls"}
+
+        back = retag_mesh(foreign, rename={"AIR": "fluid"},
+                          output_path=tmp_path / "back.msh",
+                          validate=False)
+        assert set(list_groups(str(back), verbose=False)) == {"fluid",
+                                                              "rigid_walls"}
+
     def test_retag_refuses_an_unknown_name(self, tmp_path):
         path = box_cavity(0.3, 0.3, 0.3, 2, 2, 2,
                           output_path=tmp_path / "src2.msh")
@@ -410,9 +421,7 @@ class TestExternal:
             cad_to_mesh(tmp_path / "missing.step", tmp_path / "o.msh")
 
 
-# ---------------------------------------------------------------------------
 # The STEP file shipped with the repository, when it is there
-# ---------------------------------------------------------------------------
 
 STEP = pathlib.Path(__file__).parent.parent / "Geom" / "Tubo_1m_1m.stp"
 

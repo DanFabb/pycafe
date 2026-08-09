@@ -1,5 +1,27 @@
 __version__ = "1.0.0"
 
+# Names re-exported from their module on first use, so that importing
+# pycafe does not pull in gmsh, scipy and the rest.
+_LAZY = {
+    "Library": "pycafe.core.model_spec",
+    "CadFile": "pycafe.core.model_spec",
+    "MeshFile": "pycafe.core.model_spec",
+    "Fluid": "pycafe.core.model_spec",
+    "Structure": "pycafe.core.model_spec",
+    "AIR": "pycafe.core.model_spec",
+    "WATER": "pycafe.core.model_spec",
+    "aluminium": "pycafe.core.model_spec",
+    "steel": "pycafe.core.model_spec",
+}
+
+
+def __getattr__(name):
+    if name in _LAZY:
+        import importlib
+
+        return getattr(importlib.import_module(_LAZY[name]), name)
+    raise AttributeError(f"module 'pycafe' has no attribute '{name}'")
+
 
 def load_mesh(*args, **kwargs):
     from pycafe.core.load_mesh import load_mesh as _load_mesh
@@ -47,6 +69,54 @@ def run_analysis(*args, **kwargs):
     from pycafe.core.run_analysis import run_analysis as _run_analysis
 
     return _run_analysis(*args, **kwargs)
+
+
+def ModelSpec(*args, **kwargs):
+    """Declarative model description; see
+    :class:`pycafe.core.model_spec.ModelSpec`."""
+    from pycafe.core.model_spec import ModelSpec as _ModelSpec
+
+    return _ModelSpec(*args, **kwargs)
+
+
+def build_model(*args, **kwargs):
+    """Mesh, validate and assemble a :class:`ModelSpec`; see
+    :func:`pycafe.core.model_spec.build_model`."""
+    from pycafe.core.model_spec import build_model as _build_model
+
+    return _build_model(*args, **kwargs)
+
+
+def build_mesh(*args, **kwargs):
+    """Mesh of a :class:`ModelSpec`; see
+    :func:`pycafe.core.model_spec.build_mesh`."""
+    from pycafe.core.model_spec import build_mesh as _build_mesh
+
+    return _build_mesh(*args, **kwargs)
+
+
+def plot_geometry(*args, **kwargs):
+    """Mesh coloured by role, before any matrix; see
+    :func:`pycafe.create_geom.preview.plot_geometry`."""
+    from pycafe.create_geom.preview import plot_geometry as _plot_geometry
+
+    return _plot_geometry(*args, **kwargs)
+
+
+def preview(*args, **kwargs):
+    """Build a spec's mesh and look at it; see
+    :func:`pycafe.core.model_spec.preview`."""
+    from pycafe.core.model_spec import preview as _preview
+
+    return _preview(*args, **kwargs)
+
+
+def inspect_cad(*args, **kwargs):
+    """What is inside a CAD file, tag by tag; see
+    :func:`pycafe.create_geom.external.inspect_cad`."""
+    from pycafe.create_geom.external import inspect_cad as _inspect_cad
+
+    return _inspect_cad(*args, **kwargs)
 
 
 def load_mesh_with_groups(*args, **kwargs):
