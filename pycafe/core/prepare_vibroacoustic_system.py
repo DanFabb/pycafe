@@ -81,6 +81,7 @@ def prepare_vibroacoustic_system(
     clamp_dofs=None,
     build_coupling=True,
     interface_sign=None,
+    nonconforming="auto",
 ):
     """
     Assemble the two separate domains of a vibroacoustic problem.
@@ -120,6 +121,13 @@ def prepare_vibroacoustic_system(
         Force the orientation of the interface normals instead of
         deducing it from the fluid elements; see
         :func:`pycafe.build_matrices.coupling.interface_normals`.
+    nonconforming : {"auto", False} or dict, optional
+        What to do when the structural elements are not faces of the
+        fluid elements. ``"auto"`` builds the coupling by the
+        interpolation method of
+        :mod:`pycafe.build_matrices.coupling_nonconforming` and says so
+        in ``system["interface"]``; ``False`` refuses. A conforming
+        interface is unaffected either way.
 
     Returns
     -------
@@ -156,21 +164,16 @@ def prepare_vibroacoustic_system(
 
     n = nodes.shape[0]
 
-    # ------------------------------------------------------------------
-    # Dominio acustico
-    # ------------------------------------------------------------------
+    # Acoustics
     K_a, M_a, _, elem_a = build_KM_acoustic_domain(nodes, domains, c0)
     fluid_nodes0 = np.asarray(domains["fluid"]["nodes"], dtype=int) - 1
-
-    # ------------------------------------------------------------------
-    # Dominio strutturale (numerato su tutti i nodi: 6N DOF)
-    # ------------------------------------------------------------------
+    # Structural
     K_s, M_s, _, elem_s = build_KM_structural_domain(
         nodes, domains, t, rho_s, E, nu, nsm
     )
     plate_nodes0 = np.asarray(domains["structure"]["nodes"], dtype=int) - 1
 
-    # incastro: gruppo di vincolo (tutti i 6 DOF bloccati)
+    # clamped
     if clamp_group is None:
         clamp_group = next(
             (g for g in groups if g.lower() in DEFAULT_CLAMP_GROUPS), None
@@ -182,9 +185,6 @@ def prepare_vibroacoustic_system(
     else:
         clamped_nodes0 = np.array([], dtype=int)
 
-    # DOF attivi = tutti i 6 DOF dei nodi piastra, meno quelli bloccati
-    # sul bordo. Quali siano dipende dal tipo di appoggio: un incastro
-    # blocca anche le rotazioni, un appoggio semplice no.
     blocked = _blocked_dofs(support, clamp_dofs)
     all_dofs = (plate_nodes0[:, None] * 6 + np.arange(6)).ravel()
     constrained = (clamped_nodes0[:, None] * 6 + blocked).ravel()
@@ -193,9 +193,8 @@ def prepare_vibroacoustic_system(
     K_s_red = K_s[np.ix_(idx_free_s, idx_free_s)]
     M_s_red = M_s[np.ix_(idx_free_s, idx_free_s)]
 
-    # ------------------------------------------------------------------
-    # Interfaccia (mesh conforme: facce piastra = facce hexa)
-    # ------------------------------------------------------------------
+    # Interface
+    
     iface_conn0 = domains["structure"]["conn0"]
     fluid_conn0 = domains["fluid"]["conn0"]
 
@@ -205,27 +204,39 @@ def prepare_vibroacoustic_system(
         "normals": None,
     }
 
-    # ------------------------------------------------------------------
-    # Accoppiamento fluido-struttura
-    # ------------------------------------------------------------------
+    # Coupling 
+    
     coupling = None
     if build_coupling:
         from pycafe.build_matrices.coupling import interface_normals
 
-        interface["normals"] = interface_normals(
-            nodes, iface_conn0, fluid_conn0, sign=interface_sign
-        )
+        report = {}
         Kc = build_coupling_matrix(
             nodes, iface_conn0, fluid_conn0,
             sign=interface_sign,
             num_nodes=n,
             dofs_per_node=domains["structure"]["spec"].dofs_per_node,
+            nonconforming=nonconforming,
+            report=report,
         )
+        # On a non-conforming interface the normals come from the fluid
+        # boundary the structure faces, not from the element behind it,
+        # and the fallback has already resolved them.
+        interface["conforming"] = report.get("conforming", True)
+        interface["normals"] = report.get("normals")
+        if interface["normals"] is None:
+            interface["normals"] = interface_normals(
+                nodes, iface_conn0, fluid_conn0, sign=interface_sign
+            )
         coupling = {
             "Kc": Kc,
             "Mc": acoustic_coupling_matrix(Kc, rho0),
             "area_vector": interface_area_vector(Kc),
         }
+        if not interface["conforming"]:
+            coupling["nonconforming"] = {
+                k: v for k, v in report.items() if k != "normals"
+            }
 
     system = {
         "domains": domains,

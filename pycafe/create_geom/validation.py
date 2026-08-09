@@ -12,10 +12,14 @@ would otherwise be discovered halfway through an analysis:
   solvers look them up (with a suggestion when a name is a near miss);
 * every domain group holds elements of a type pyCAFE has a kernel for;
 * connectivity stays inside the node array, and no node is orphaned;
-* for a coupled model, the interface is **conforming**: every structural
-  element is a face of exactly one fluid element — not zero (the meshes
-  do not share nodes) and not two (the surface is inside the fluid,
-  where no outward normal exists);
+* for a coupled model, whether the interface is **conforming**: every
+  structural element a face of exactly one fluid element. Zero (the
+  meshes do not share nodes) is reported as a warning, since the
+  coupling can still be built by interpolation
+  (:mod:`pycafe.build_matrices.coupling_nonconforming`) at a cost in
+  accuracy; two owners (the surface is inside the fluid, where no
+  outward normal exists) stays an error, as the orientation has to be
+  imposed by hand;
 * the element size resolves the frequency band asked for.
 
 .. code-block:: python
@@ -287,11 +291,13 @@ def validate_mesh(mesh, *, analysis="auto", c0=343.0, f_max=None):
                 domains["structure"]["nodes"], dtype=int).tolist())
             missing = plate_nodes - fluid_nodes
             if missing:
-                report.errors.append(
+                report.warnings.append(
                     f"{len(missing)} structural node(s) are not fluid nodes: "
                     "the two meshes do not share their interface nodes, so "
-                    "the coupling cannot be assembled by shared nodes. Mesh "
-                    "the plate as the faces of the fluid elements."
+                    "the coupling cannot be assembled by shared nodes. It "
+                    "will be built by interpolation instead (Mi & Zheng "
+                    "2018); mesh the plate as the faces of the fluid "
+                    "elements to keep the exact, conforming one."
                 )
 
             try:
@@ -306,10 +312,13 @@ def validate_mesh(mesh, *, analysis="auto", c0=343.0, f_max=None):
                 interior = [k for k in keys
                             if k in owners and len(owners[k]) > 1]
                 if not_a_face:
-                    report.errors.append(
+                    report.warnings.append(
                         f"{len(not_a_face)} of {len(keys)} structural "
                         "element(s) are not faces of any fluid element: the "
-                        "interface is not conforming."
+                        "interface is not conforming, so the coupling is "
+                        "built by the interpolation method of "
+                        "pycafe.build_matrices.coupling_nonconforming "
+                        "(Mi & Zheng 2018) rather than by shared nodes."
                     )
                 if interior:
                     report.errors.append(

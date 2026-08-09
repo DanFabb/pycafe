@@ -79,6 +79,8 @@ pycafe.solver.solver_vibroacoustic : Coupled system and solvers.
 pycafe.core.prepare_vibroacoustic_system : Builds this matrix.
 """
 
+import warnings
+
 import numpy as np
 from scipy.sparse import coo_matrix
 
@@ -132,6 +134,56 @@ def _fluid_face_owners(fluid_conn0):
                 tuple(sorted(row[list(face)].tolist())), []
             ).append(e)
     return owners
+
+
+def interface_is_conforming(interface_conn0, fluid_conn0):
+    """
+    Is every interface face a face of exactly one fluid element?
+
+    This is the question that decides how the coupling can be built: a
+    True means the shared-node integral of
+    :func:`build_coupling_matrix` applies, a False means the two meshes
+    describe the same surface twice and the interpolation route of
+    :mod:`pycafe.build_matrices.coupling_nonconforming` is needed.
+
+    Parameters
+    ----------
+    interface_conn0 : ndarray (n_faces, 4)
+        Structural faces, 0-based.
+    fluid_conn0 : ndarray
+        Fluid volume connectivity, 0-based.
+
+    Returns
+    -------
+    conforming : bool
+        True when no face is missing from the fluid mesh. Faces shared
+        by *two* fluid elements do not make it False: those are interior
+        faces of a structure embedded in the fluid, which still share
+        their nodes and only need an imposed ``sign``.
+    orphans : list of int
+        Indices of the faces that are not faces of any fluid element.
+    interior : list of int
+        Indices of the faces shared by two fluid elements.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> fluid = np.array([[0, 1, 2, 3, 4, 5, 6, 7]])
+    >>> interface_is_conforming(np.array([[0, 1, 2, 3]]), fluid)[0]
+    True
+    >>> interface_is_conforming(np.array([[8, 9, 10, 11]]), fluid)[0]
+    False
+    """
+    owners = _fluid_face_owners(fluid_conn0)
+    conn = np.asarray(interface_conn0, dtype=int)
+    orphans, interior = [], []
+    for k, face in enumerate(conn):
+        key = tuple(sorted(face.tolist()))
+        if key not in owners:
+            orphans.append(k)
+        elif len(owners[key]) > 1:
+            interior.append(k)
+    return (not orphans), orphans, interior
 
 
 def interface_normals(nodes, interface_conn0, fluid_conn0=None, sign=None):
@@ -235,6 +287,8 @@ def build_coupling_matrix(
     sign=None,
     num_nodes=None,
     dofs_per_node=6,
+    nonconforming="auto",
+    report=None,
 ):
     """
     Assemble the fluid-structure coupling matrix ``Kc``.
@@ -269,6 +323,26 @@ def build_coupling_matrix(
         Total number of mesh nodes; defaults to ``len(nodes)``.
     dofs_per_node : int, optional
         Structural DOFs per node (6 for CQUAD4F).
+    nonconforming : {"auto", False} or dict, optional
+        What to do when a structural face is **not** a face of any fluid
+        element, i.e. when the two meshes do not share their interface
+        nodes.
+
+        - ``"auto"`` (default): fall back to the interpolation method of
+          :func:`pycafe.build_matrices.coupling_nonconforming.build_nonconforming_coupling`
+          and warn. A conforming interface never reaches that code: it
+          is detected first and assembled by the integral below, so
+          nothing changes for it.
+        - ``False``: refuse, as before, with the error of
+          :func:`interface_normals`.
+        - a dict: the options of the fallback (``method``, ``shape``,
+          ``degree``, ``wet_factor``, ...), which also selects it.
+    report : dict, optional
+        Filled in place with what the fallback did — see the ``report``
+        of
+        :func:`~pycafe.build_matrices.coupling_nonconforming.build_nonconforming_coupling`,
+        plus ``conforming``. Left untouched on a conforming interface
+        except for that flag.
 
     Returns
     -------
@@ -281,11 +355,13 @@ def build_coupling_matrix(
     vector area of the interface: ``Kc.sum(axis=1)`` gathers, on the
     translation DOFs, exactly ``int_S n dS``. That identity is the
     cheapest check that both the orientation and the surface Jacobian
-    are right.
+    are right, and it is the one the non-conforming fallback verifies
+    before returning.
 
     See Also
     --------
     interface_normals : Orientation of the interface normals.
+    pycafe.build_matrices.coupling_nonconforming : Interpolation route.
     pycafe.solver.solver_vibroacoustic : Coupled system and solvers.
     """
     nodes = np.asarray(nodes, dtype=float)
@@ -297,6 +373,37 @@ def build_coupling_matrix(
         )
 
     n_nodes = int(num_nodes if num_nodes is not None else nodes.shape[0])
+
+    # Only a mesh that is genuinely not sharing its interface nodes is
+    # sent to the interpolation; everything else goes on as before.
+    if fluid_conn0 is not None and nonconforming is not False:
+        conforming, orphans, _interior = interface_is_conforming(
+            conn, fluid_conn0
+        )
+        if report is not None:
+            report["conforming"] = conforming
+        if not conforming:
+            from .coupling_nonconforming import build_nonconforming_coupling
+
+            options = dict(nonconforming) if isinstance(nonconforming, dict) \
+                else {}
+            warnings.warn(
+                f"{len(orphans)} of {conn.shape[0]} interface faces are not "
+                "faces of any fluid element: the meshes do not share their "
+                "interface nodes. The coupling is built by the interpolation "
+                "method of Mi & Zheng (2018), CMA 338:264-297, instead of by "
+                "shared nodes. Pass nonconforming=False to refuse instead.",
+                RuntimeWarning,
+            )
+            Kc, nc_report = build_nonconforming_coupling(
+                nodes, conn, fluid_conn0,
+                sign=sign, num_nodes=n_nodes, dofs_per_node=dofs_per_node,
+                **options,
+            )
+            if report is not None:
+                report.update(nc_report)
+                report["conforming"] = False
+            return Kc
     normals = interface_normals(nodes, conn, fluid_conn0, sign=sign)
 
     rows, cols, vals = [], [], []
