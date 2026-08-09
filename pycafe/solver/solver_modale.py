@@ -34,9 +34,7 @@ def solve_modal_acoustic_reduced(
     modes_red : (Nr, num_modes) ndarray
         Corresponding mode shapes on the reduced DOFs.
     """
-    # --------------------------------------------------
     # 1. Ensure sparse CSR format (eigsh works with sparse or dense)
-    # --------------------------------------------------
     if not sp.issparse(K_red):
         K_red = sp.csr_matrix(np.asarray(K_red, dtype=float))
     else:
@@ -47,16 +45,12 @@ def solve_modal_acoustic_reduced(
     else:
         M_red = M_red.tocsr().astype(float)
 
-    # --------------------------------------------------
     # 2. Enforce symmetry numerically
-    # --------------------------------------------------
     K_red = 0.5 * (K_red + K_red.T)
     M_red = 0.5 * (M_red + M_red.T)
 
-    # --------------------------------------------------
     # 3. Solve with ARPACK: only num_modes smallest eigenvalues
     #    sigma=0 → shift-invert mode, much faster for smallest λ
-    # --------------------------------------------------
     n = K_red.shape[0]
     if n == 0:
         raise RuntimeError("Reduced modal system is empty.")
@@ -69,9 +63,7 @@ def solve_modal_acoustic_reduced(
 
     eigvals = np.real(eigvals)
 
-    # --------------------------------------------------
     # 4. Discard non-physical (near-zero) modes
-    # --------------------------------------------------
     scale = max(1.0, float(np.max(np.abs(eigvals)))) if eigvals.size else 1.0
     lambda_min = 1e-10 * scale
     valid = eigvals > lambda_min
@@ -81,9 +73,7 @@ def solve_modal_acoustic_reduced(
     if eigvals.size == 0:
         raise RuntimeError("No physical eigenvalues found above threshold.")
 
-    # --------------------------------------------------
     # 5. Sort, truncate, convert to frequencies
-    # --------------------------------------------------
     order = np.argsort(eigvals)
     eigvals = eigvals[order][:num_modes]
     eigvecs = eigvecs[:, order][:, :num_modes]

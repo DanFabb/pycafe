@@ -64,7 +64,7 @@ class TestTwoDomains:
 
     def test_structural_clamp_applied(self, system):
         n_plate = (NX + 1) * (NY + 1)
-        n_clamp = 2 * NX + 2 * NY          # nodi perimetro
+        n_clamp = 2 * NX + 2 * NY
         n_free_nodes = n_plate - n_clamp
         assert system["structural"]["K_red"].shape == (
             6 * n_free_nodes, 6 * n_free_nodes
@@ -73,7 +73,6 @@ class TestTwoDomains:
 
     def test_interface_faces(self, system):
         assert system["interface"]["conn0"].shape == (NX * NY, 4)
-        # nodi interfaccia = nodi piastra
         iface = set(np.unique(system["interface"]["conn0"]))
         assert iface == set(system["structural"]["nodes0"].tolist())
 

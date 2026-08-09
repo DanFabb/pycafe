@@ -52,7 +52,6 @@ class TestIdentifyDomains:
 
         assert domains["structure"]["elem_type"] == "CQUAD4F"
         assert domains["structure"]["group"] == "plate"
-        # solo i quad della piastra, non i 188 delle pareti
         assert domains["structure"]["conn0"].shape == (NX * NY, 4)
 
     def test_structure_nodes_subset_of_fluid(self, box_plate):
@@ -78,7 +77,6 @@ class TestDomainAssembly:
         assert elem_type == "CHEXA8"
         n = nodes.shape[0]
         assert K.shape == (n, n)
-        # massa acustica totale = V / c0^2
         V = LX * LY * LZ
         assert np.isclose(M.sum(), V / 343.0**2, rtol=1e-10)
 
@@ -99,13 +97,10 @@ class TestDomainAssembly:
         n = nodes.shape[0]
         assert K.shape == (6 * n, 6 * n)
 
-        # massa strutturale = rho * t * area della PIASTRA sola
-        # (le pareti non devono contribuire)
         uz = np.zeros(6 * n)
         uz[2::6] = 1.0
         assert np.isclose(uz @ (M @ uz), rho * t * LX * LY, rtol=1e-10)
 
-        # i DOF dei nodi non-piastra sono vuoti
         plate_nodes0 = np.array(domains["structure"]["nodes"], dtype=int) - 1
         mask = np.ones(n, dtype=bool)
         mask[plate_nodes0] = False

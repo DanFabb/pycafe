@@ -16,7 +16,6 @@
 # :mod:`pycafe.build_matrices.bc_ops`; it is only *described* here.
 #
 # Sign convention
-# ---------------
 # Time dependence exp(+j omega t), and the normal velocity is measured
 # along the **outward** normal of the fluid domain:
 #
@@ -42,9 +41,7 @@ _ABSOLUTE_UNITS = {"abs", "absolute", "si", "rayl", "rayls", "specific",
                    "pa*s/m", "pas/m"}
 
 
-# ============================================================
 #  IMPEDANCE / ADMITTANCE
-# ============================================================
 def make_admittance(Z, rho, c0):
     """
     Build the specific admittance ``A(omega) = 1 / Z(omega)``.
@@ -122,9 +119,7 @@ def make_admittance(Z, rho, c0):
     return admittance
 
 
-# ============================================================
 #  BOUNDARY CONDITION ENTRIES
-# ============================================================
 @dataclass
 class VelocityBC:
     """
@@ -479,9 +474,7 @@ def check_node_index(node, what, n_dof=None):
     return idx
 
 
-# ============================================================
 #  OPERATORS
-# ============================================================
 class ImpedanceOperator:
     """
     Frequency-dependent acoustic damping matrix ``C(omega)``.
@@ -697,9 +690,7 @@ def _as_callable(value):
     return lambda omega: constant
 
 
-# ============================================================
 #  BUILDERS
-# ============================================================
 def build_impedance_operator(
     bc,
     *,

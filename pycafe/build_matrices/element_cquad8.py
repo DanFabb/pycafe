@@ -65,7 +65,6 @@ def cquad8_shape(xi, eta):
 
     N = np.array([N1, N2, N3, N4, N5, N6, N7, N8], dtype=float)
 
-    # Derivate rispetto a xi (tradotte 1:1 dal MATLAB)
     dN_dxi = np.array([
         -0.25*(1-eta)*(1-xi) - 0.25*(1-eta)*(-1-eta-xi),
          0.25*(1-eta)*(1+xi) + 0.25*(1-eta)*(-1-eta+xi),
@@ -77,7 +76,6 @@ def cquad8_shape(xi, eta):
         -0.5*(1-eta**2)
     ], dtype=float)
 
-    # Derivate rispetto a eta
     dN_deta = np.array([
         -0.25*(1-eta)*(1-xi) - 0.25*(1-xi)*(-1-eta-xi),
         -0.25*(1-eta)*(1+xi) - 0.25*(1+xi)*(-1-eta+xi),
@@ -147,7 +145,7 @@ def jacobian_2d(dN_dxi, dN_deta, x2d):
 def jacobian_1d(dN_dxi, x1D_e):
     
     x1D_e = np.asarray(x1D_e, dtype=float).ravel()
-    J = dN_dxi @ x1D_e    # prodotto riga x1D_e
+    J = dN_dxi @ x1D_e
     detJ = J
     invJ = 1.0 / J
     return J, detJ, invJ
@@ -161,14 +159,11 @@ def calcola_line(x_start, x_end):
     # punto medio
     x0 = 0.5 * (x_start + x_end)
 
-    # direzione locale
     x_dir = x_end - x_start
     x_dir = x_dir / np.linalg.norm(x_dir)
 
-    # matrice di trasformazione 1x3
     T_1D = x_dir[np.newaxis, :]  # (1,3)
 
-    # coord locali dei due nodi
     pts = np.column_stack([x_start, x_end])   # (3,2)
     x1D_e = T_1D @ (pts - x0[:, None])        # (1,2)
 
@@ -177,7 +172,6 @@ def calcola_line(x_start, x_end):
 
 def calcola_cquad8(x1, x2, x3, x4, x5, x6, x7, x8):
  
-    # porta tutto a vettori 1D
     x1 = np.asarray(x1, dtype=float).ravel()
     x2 = np.asarray(x2, dtype=float).ravel()
     x3 = np.asarray(x3, dtype=float).ravel()
@@ -195,10 +189,8 @@ def calcola_cquad8(x1, x2, x3, x4, x5, x6, x7, x8):
     B = nodi_traslati[2, :] - nodi_traslati[1, :]
     normale = np.cross(A, B)
 
-    # vettore z globale
     z_glob = np.array([0.0, 0.0, 1.0], dtype=float)
 
-    # se la normale è allineata a z_glob → nessuna rotazione
     if np.allclose(np.cross(normale, z_glob), 0.0):
         T_e0, x0 = _calcola_matrice_senza_rotazione(nodi_traslati, normale, baricentro)
     else:
@@ -308,7 +300,6 @@ def _ruota_nodi(normale, nodi_traslati):
     k = np.cross(n, z_glob)
     norm_k = np.linalg.norm(k)
     if norm_k < 1e-14:
-        # già allineato
         R = np.eye(3)
     else:
         k = k / norm_k
@@ -324,9 +315,7 @@ def _ruota_nodi(normale, nodi_traslati):
     return nodi_ruotati, R
 
 
-# ------------------------------------------------------------
 #  ELEMENT MATRICES (K_e, M_e)
-# ------------------------------------------------------------
 def element_matrices_cquad8(x_e, c, quad_rule=gauss_rule_quad_3x3):
     """
     Compute the element stiffness and mass matrices for a CQUAD8 element.
@@ -372,7 +361,6 @@ def element_matrices_cquad8(x_e, c, quad_rule=gauss_rule_quad_3x3):
 
     x_e = np.asarray(x_e, dtype=float)
     if x_e.shape[1] == 3:
-        # se abbiamo 3D, prendiamo solo x,y per integrare nel piano
         x2d = x_e[:, :2]
     else:
         x2d = x_e  # (8,2)

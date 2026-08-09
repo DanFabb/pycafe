@@ -41,9 +41,7 @@ REF_TET = np.array([
 ])
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def make_box_mesh_tetra4(Lx, Ly, Lz, nx, ny, nz):
     """
@@ -136,9 +134,7 @@ def build_KM(nodes, elements, kernel, key):
     return K, M
 
 
-# ---------------------------------------------------------------------------
 # Geometry: the closed forms of Chapter 15
-# ---------------------------------------------------------------------------
 
 class TestGeometry:
 
@@ -188,9 +184,7 @@ class TestGeometry:
             tetra4_shape([0.5, 0.0, 0.0, 0.0])
 
 
-# ---------------------------------------------------------------------------
 # Element matrices
-# ---------------------------------------------------------------------------
 
 class TestElementMatrices:
 
@@ -231,9 +225,7 @@ class TestElementMatrices:
             element_matrices_tetra4(REF_TET[:3], C0)
 
 
-# ---------------------------------------------------------------------------
 # Registry wiring
-# ---------------------------------------------------------------------------
 
 class TestRegistry:
 
@@ -261,9 +253,7 @@ class TestRegistry:
         assert elem_type == "CTETRA4"
 
 
-# ---------------------------------------------------------------------------
 # Analytical validation: rigid rectangular cavity
-# ---------------------------------------------------------------------------
 
 class TestMeshHelper:
     """
@@ -379,9 +369,7 @@ class TestCavityModes:
         assert np.allclose(K @ np.ones(nodes.shape[0]), 0.0, atol=1e-10)
 
 
-# ---------------------------------------------------------------------------
 # Volume sources on a tetrahedral mesh
-# ---------------------------------------------------------------------------
 
 class TestVolumeSources:
 
@@ -420,9 +408,7 @@ class TestVolumeSources:
             point_source_shape(nodes, elements, np.array([1.4, 1.4, 1.4]))
 
 
-# ---------------------------------------------------------------------------
 # End to end: an unstructured gmsh mesh through the dispatcher
-# ---------------------------------------------------------------------------
 
 class TestUnstructuredMesh:
     """

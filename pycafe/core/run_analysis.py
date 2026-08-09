@@ -27,9 +27,7 @@ def run_analysis(
     2D ones.
     """
 
-    # =========================================================
     # INTERACTIVE (legacy, unchanged)
-    # =========================================================
     if interactive:
         return run_acoustic_analysis(
             nodes=nodes,
@@ -50,9 +48,7 @@ def run_analysis(
             source_operator=system.get("source_red_op"),
         )
 
-    # =========================================================
     # NON-INTERACTIVE: DIRECT ANALYSIS (TEST / CI SAFE)
-    # =========================================================
 
     # --- safe default frequency ---
     freq = 500.0  # Hz

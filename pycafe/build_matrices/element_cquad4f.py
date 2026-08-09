@@ -19,7 +19,6 @@
 # solver that will shortly be released as open source.
 #
 # References
-# ----------
 # R. H. MacNeal, "A simple quadrilateral shell element",
 #     Computers & Structures 8 (1978) 175-183.
 # R. H. MacNeal, "The evolution of lower order plate and shell elements
@@ -42,9 +41,7 @@ EPSILON_DEFAULT = 0.0227
 EPSILON_MINDLIN = 0.02642
 
 
-# ------------------------------------------------------------------
 #  SHAPE FUNCTIONS / JACOBIAN
-# ------------------------------------------------------------------
 def evaluate_shape_functions(xi, eta):
     """Bilinear shape functions and natural derivatives, (4,) each."""
     N = 0.25 * np.array([(1 - xi) * (1 - eta), (1 + xi) * (1 - eta),
@@ -105,9 +102,7 @@ def calculate_curvature_B(dNdxi, dNdeta, invJ):
     return B
 
 
-# ------------------------------------------------------------------
 #  ELEMENT FRAME
-# ------------------------------------------------------------------
 def _diagonal_intersection(nodes):
     """Intersection of the diagonals 1-3 and 2-4 (in-plane)."""
     dx13 = nodes[2, 0] - nodes[0, 0]
@@ -186,9 +181,7 @@ def element_frame(x_e):
     return np.vstack([xe, ye, ze]), x0
 
 
-# ------------------------------------------------------------------
 #  RESIDUAL BENDING FLEXIBILITY (MacNeal)
-# ------------------------------------------------------------------
 def residual_bending_flexibility(x2D_e, tNodes, E2dMembrane, E2dShear,
                                  area, I0, epsilon, mindlin=False):
     """
@@ -265,9 +258,7 @@ def residual_bending_flexibility(x2D_e, tNodes, E2dMembrane, E2dShear,
     return Kadd
 
 
-# ------------------------------------------------------------------
 #  ELEMENT MATRICES
-# ------------------------------------------------------------------
 def element_matrices_cquad4f(x_e, t, rho, E, nu, nsm=0.0,
                              epsilon=EPSILON_DEFAULT, k6rot=1000.0,
                              rbf_mindlin=False):

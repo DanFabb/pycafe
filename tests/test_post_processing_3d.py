@@ -72,9 +72,7 @@ def _hex_block(nx=3, ny=2, nz=2):
     return nodes, elements, (nx, ny, nz)
 
 
-# ------------------------------------------------------------
 #  SURFACE EXTRACTION
-# ------------------------------------------------------------
 def test_skin_of_hex_block_has_no_interior_face():
     nodes, elements, (nx, ny, nz) = _hex_block()
     faces = extract_surface_faces(elements)
@@ -107,9 +105,7 @@ def test_unknown_element_type_is_reported():
         extract_surface_faces({"Point 1": np.array([[1]])})
 
 
-# ------------------------------------------------------------
 #  ANIMATION
-# ------------------------------------------------------------
 def _sweep_field(nodes, frequencies):
     """Plane wave along x, one column per frequency."""
     k = 2.0 * np.pi * np.asarray(frequencies) / C0
@@ -227,9 +223,7 @@ def test_spl_is_the_level_of_the_amplitude(tmp_path):
     assert out.exists()
 
 
-# ------------------------------------------------------------
 #  CLIPPING
-# ------------------------------------------------------------
 def test_clip_keeps_one_side_and_exposes_the_cut():
     nodes, elements, (nx, ny, nz) = _hex_block(nx=4, ny=2, nz=2)
     x_mid = 0.5 * (nodes[:, 0].min() + nodes[:, 0].max())
@@ -271,9 +265,7 @@ def test_clipped_movie_is_written(tmp_path):
     assert out.exists() and out.stat().st_size > 0
 
 
-# ------------------------------------------------------------
 #  POINT RESPONSE AND DISPATCH
-# ------------------------------------------------------------
 def test_point_response_interpolates_in_3d():
     nodes, elements, _ = _hex_block()
     frequencies = np.linspace(100.0, 400.0, 4)
@@ -312,9 +304,7 @@ def test_dispatch_detects_a_3d_mesh():
     assert not is_three_dimensional(flat[:, :2])
 
 
-# ------------------------------------------------------------
 #  ANECHOIC BOUNDARY
-# ------------------------------------------------------------
 def test_add_anechoic_is_the_characteristic_impedance():
     bc = AcousticBC()
     bc.add_anechoic("Omega_e")

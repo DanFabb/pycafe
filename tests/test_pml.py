@@ -43,9 +43,7 @@ C0 = 343.0
 RHO = 1.204
 
 
-# ---------------------------------------------------------------------------
 # Meshes: a duct whose last stretch is the layer
-# ---------------------------------------------------------------------------
 
 def duct_2d(L_phys, L_pml, H, nx_phys, nx_pml, ny, quad8=False):
     x = np.concatenate([np.linspace(0.0, L_phys, nx_phys + 1),
@@ -153,9 +151,7 @@ def travelling_wave_error(nodes, probe, p, k, v_piston=1.0):
     return rel.max(), swr
 
 
-# ---------------------------------------------------------------------------
 # The absorption profile
-# ---------------------------------------------------------------------------
 
 class TestCartesianPML:
 
@@ -226,9 +222,7 @@ class TestCartesianPML:
         assert profile.integral(0.0) == pytest.approx(0.0)
 
 
-# ---------------------------------------------------------------------------
 # The stretching factors
-# ---------------------------------------------------------------------------
 
 class TestStretching:
 
@@ -303,9 +297,7 @@ class TestStretching:
             op.matrix(0.0)
 
 
-# ---------------------------------------------------------------------------
 # Consistency: no absorption means the ordinary element matrices
-# ---------------------------------------------------------------------------
 
 class TestNoAbsorptionLimit:
     """
@@ -346,9 +338,7 @@ class TestNoAbsorptionLimit:
         self._check(nodes, phys, "Tetrahedron 4", element_matrices_tetra4)
 
 
-# ---------------------------------------------------------------------------
 # The layer does its job: a duct that does not reflect
-# ---------------------------------------------------------------------------
 
 class TestDuctTermination:
 
@@ -432,9 +422,7 @@ class TestDuctTermination:
         assert rel < 0.02, f"error {rel*100:.2f}%"
 
 
-# ---------------------------------------------------------------------------
 # Input handling
-# ---------------------------------------------------------------------------
 
 class TestBuildErrors:
 
@@ -476,9 +464,7 @@ class TestBuildErrors:
             build_pml_operator(nodes, {"Quadrilateral 8": layer}, C0, pml)
 
 
-# ---------------------------------------------------------------------------
 # Curved layers
-# ---------------------------------------------------------------------------
 
 def shell_mesh(r_inner, r_interface, r_outer, n_r_fluid, n_r_pml, n_theta,
                n_z=None):
@@ -623,9 +609,7 @@ class TestCurvedLayers:
                            inner_radius=1.0, profile=PowerProfile(1.0, 1.0))
 
 
-# ---------------------------------------------------------------------------
 # Reading the layer off the mesh
-# ---------------------------------------------------------------------------
 
 def as_groups(nodes, fluid, layer, key, extra=None):
     """The subset of load_mesh_with_groups that the PML factory reads."""
@@ -741,9 +725,7 @@ class TestFromGroups:
         assert strong.layer.profile.sigma0 > weak.layer.profile.sigma0
 
 
-# ---------------------------------------------------------------------------
 # End to end: naming the group is the whole switch
-# ---------------------------------------------------------------------------
 
 def duct_msh(path, L_phys, L_pml, H, W, with_pml=True):
     """A gmsh duct whose last stretch is a separate 'pml' group."""

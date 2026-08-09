@@ -44,9 +44,7 @@ RHO = 1.2
 C0 = 340.0
 
 
-# ---------------------------------------------------------------------------
 # Mesh helpers (structured, built in place: no Gmsh needed)
-# ---------------------------------------------------------------------------
 
 def duct_mesh_2d(L=1.0, H=0.1, nx=40, ny=2):
     """CQUAD4 duct along x, with Line 2 elements on the two ends."""
@@ -113,9 +111,7 @@ def duct_mesh_3d(L=1.0, H=0.1, W=0.1, nx=30, ny=1, nz=1):
     return nodes, elements, boundaries
 
 
-# ---------------------------------------------------------------------------
 # Tests: boundary integrals
-# ---------------------------------------------------------------------------
 
 class TestBoundaryIntegrals:
 
@@ -181,9 +177,7 @@ class TestBoundaryIntegrals:
         np.testing.assert_allclose(np.asarray(S.sum(axis=1)).ravel(), g, atol=1e-14)
 
 
-# ---------------------------------------------------------------------------
 # Tests: boundary resolution
-# ---------------------------------------------------------------------------
 
 class TestBoundaryResolution:
 
@@ -221,9 +215,7 @@ class TestBoundaryResolution:
         assert np.isclose(g.sum(), 2.0)
 
 
-# ---------------------------------------------------------------------------
 # Tests: impedance specification
-# ---------------------------------------------------------------------------
 
 class TestAdmittance:
 
@@ -329,9 +321,7 @@ class TestImpedanceOperator:
         np.testing.assert_allclose(C_red, C_full[np.ix_(idx_free, idx_free)])
 
 
-# ---------------------------------------------------------------------------
 # Tests: normal velocity load vector
-# ---------------------------------------------------------------------------
 
 class TestVelocityOperator:
 
@@ -443,9 +433,7 @@ class TestVelocityRHSCompatibility:
         assert idx.size == 0 or idx.max() < idx_free.size
 
 
-# ---------------------------------------------------------------------------
 # Tests: public entry point with named boundaries
-# ---------------------------------------------------------------------------
 
 class TestPrepareAcousticSystemBoundaries:
 
@@ -489,9 +477,7 @@ class TestPrepareAcousticSystemBoundaries:
         assert system["velocity_red_op"].shape == (system["idx_free"].size,)
 
 
-# ---------------------------------------------------------------------------
 # Tests: analytical validation on a duct
-# ---------------------------------------------------------------------------
 
 def _solve_duct(nodes, elements, boundaries, freq, u):
     """Piston at x = 0, anechoic termination at x = L."""
@@ -569,9 +555,7 @@ class TestDuctPlaneWave:
             assert spread < 1e-6 * np.abs(p).max()
 
 
-# ---------------------------------------------------------------------------
 # Tests: frequency sweep wiring
-# ---------------------------------------------------------------------------
 
 class TestFrequencySweep:
 

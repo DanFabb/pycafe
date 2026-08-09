@@ -80,9 +80,7 @@ from .element_hex8 import gauss_rule_hex_2x2x2, hex8_shape, jacobian_3d
 from .element_tetra4 import tetra4_geometry
 
 
-# ---------------------------------------------------------------------------
 #  Absorption profile
-# ---------------------------------------------------------------------------
 
 @dataclass
 class PowerProfile:
@@ -163,9 +161,7 @@ class PowerProfile:
         return cls(sigma0=sigma0, thickness=thickness, order=order)
 
 
-# ---------------------------------------------------------------------------
 #  Layer geometries
-# ---------------------------------------------------------------------------
 
 # Below this many element layers, the piecewise-constant profile is a
 # staircase rather than a ramp. The number is a chosen warning
@@ -463,9 +459,7 @@ def _tangents(r_hat):
     return [t1, np.cross(r_hat, t1)]
 
 
-# ---------------------------------------------------------------------------
 #  Element quadrature: N, physical gradients, and the integration weight
-# ---------------------------------------------------------------------------
 
 def _quadrature_quad(shape_fn, quad_rule):
     def points(x_e):
@@ -520,9 +514,7 @@ _QUADRATURE = {
 }
 
 
-# ---------------------------------------------------------------------------
 #  The assembled layer
-# ---------------------------------------------------------------------------
 
 @dataclass
 class PMLOperator:
@@ -759,9 +751,7 @@ def build_pml_operator(nodes, elements, c0, layer, n_dof=None):
     )
 
 
-# ---------------------------------------------------------------------------
 #  Reading the layer off a mesh
-# ---------------------------------------------------------------------------
 
 def _group_nodes(group):
     """0-based node indices touched by a physical group."""

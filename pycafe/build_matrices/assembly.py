@@ -71,7 +71,7 @@ def assemble_KM(
     n_elem, n_en = conn0.shape
     if kernel_args is None:
         kernel_args = (c0,)
-    n_ed = n_en * dofs_per_node          # DOF per elemento
+    n_ed = n_en * dofs_per_node
     num_dofs = nodes.shape[0] * dofs_per_node
     block = n_ed * n_ed
 

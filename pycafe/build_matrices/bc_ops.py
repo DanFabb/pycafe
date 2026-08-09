@@ -11,17 +11,14 @@ from scipy.sparse import lil_matrix
 def reduce_KM_dirichlet(K_global, M_global, boundary_pressure_zero):
 
 
-    # unique (come MATLAB)
     boundary_pressure_zero = np.unique(boundary_pressure_zero)
 
     K_reduced = K_global.copy()
     M_reduced = M_global.copy()
 
-    # Rimozione righe
     K_reduced = np.delete(K_reduced, boundary_pressure_zero, axis=0)
     M_reduced = np.delete(M_reduced, boundary_pressure_zero, axis=0)
 
-    # Rimozione colonne
     K_reduced = np.delete(K_reduced, boundary_pressure_zero, axis=1)
     M_reduced = np.delete(M_reduced, boundary_pressure_zero, axis=1)
 
@@ -76,30 +73,17 @@ def reduce_KMC_dirichlet_mask(K_global, M_global, C, boundary_pressure_zero):
     prepare_acoustic_system : High-level acoustic system preparation.
     """
 
-    # Numero totale di nodi
     n = K_global.shape[0]
 
-    # --------------------------------------------------
-    # 1) Rendo unici gli indici (come MATLAB unique)
-    # --------------------------------------------------
     boundary_pressure_zero = np.unique(
         np.array(boundary_pressure_zero, dtype=int)
     )
 
-    # --------------------------------------------------
-    # 2) Creo la maschera: True = nodo mantenuto
-    # --------------------------------------------------
     mask = np.ones(n, dtype=bool)
     mask[boundary_pressure_zero] = False
 
-    # --------------------------------------------------
-    # 3) Indici dei DOF liberi (sistema ridotto)
-    # --------------------------------------------------
     idx_free = np.where(mask)[0]
 
-    # --------------------------------------------------
-    # 4) Estraggo sottomatrici (equivalente a delete righe+colonne)
-    # --------------------------------------------------
     K_red = K_global[np.ix_(idx_free, idx_free)]
     M_red = M_global[np.ix_(idx_free, idx_free)]
     C_red = C[np.ix_(idx_free, idx_free)]
@@ -205,7 +189,6 @@ def get_pressure_bc_from_boundaries(
     prepare_acoustic_system : High-level acoustic system preparation.
     """
 
-    # 1) Nodi globali (0-based) dalla boundary
     nodes_global = []
     for name in bc_pressure_constant:
         if name in boundaries:
@@ -213,7 +196,6 @@ def get_pressure_bc_from_boundaries(
 
     nodes_global = np.unique(np.array(nodes_global, dtype=int) - 1)
 
-    # 2) Mappo nel sistema ridotto
     pressure_nodes_red = []
     for n in nodes_global:
         if n in idx_free:
@@ -223,7 +205,6 @@ def get_pressure_bc_from_boundaries(
 
     pressure_nodes_red = np.array(pressure_nodes_red, dtype=int)
 
-    # 3) Valori di pressione
     pressure_values = np.full(
         len(pressure_nodes_red),
         pressure_value,
@@ -254,9 +235,6 @@ def get_pressure_bc_from_boundaries_1(
 ):
 
 
-    # --------------------------------------------------
-    # 1) Nodi globali (0-based) dalla boundary
-    # --------------------------------------------------
     nodes_global = []
 
     if bc_pressure_constant is not None:
@@ -266,12 +244,8 @@ def get_pressure_bc_from_boundaries_1(
 
     nodes_global = list(np.unique(np.array(nodes_global, dtype=int) - 1))
 
-    # --------------------------------------------------
-    # 2) Aggiungo POINT SOURCE (se presente)
-    # --------------------------------------------------
     if source_node_global is not None and source_pressure_value is not None:
         if source_node_global in nodes_global:
-            # se già presente (stessa boundary) → sovrascrivo
             idx = nodes_global.index(source_node_global)
         else:
             nodes_global.append(source_node_global)
@@ -279,9 +253,6 @@ def get_pressure_bc_from_boundaries_1(
     else:
         idx = None
 
-    # --------------------------------------------------
-    # 3) Mapping nel sistema RIDOTTO
-    # --------------------------------------------------
     pressure_nodes_red = []
     pressure_values = []
 

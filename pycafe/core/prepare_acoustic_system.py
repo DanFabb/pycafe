@@ -214,9 +214,7 @@ def prepare_acoustic_system(
     else:
         domain_elements = elements
 
-    # --------------------------------------------------
     # 1) Build K, M
-    # --------------------------------------------------
     K, M, dbg, elem_type = build_KM_acoustic(
         nodes,
         elements if merged is None else merged,
@@ -232,9 +230,7 @@ def prepare_acoustic_system(
     # edges for a 2D domain, faces for a 3D one.
     boundary_dim = ELEMENT_TYPES[elem_type].dim - 1
 
-    # --------------------------------------------------
     # 2) Impedance (Robin) -> boundary matrix C
-    # --------------------------------------------------
     C_op = build_impedance_operator(
         bc,
         nodes=nodes,
@@ -247,9 +243,7 @@ def prepare_acoustic_system(
     )
     C = C_op.at(0.0)
 
-    # --------------------------------------------------
     # 2b) Normal velocity (Neumann) -> load vector V_n
-    # --------------------------------------------------
     velocity_op = build_velocity_operator(
         bc,
         nodes=nodes,
@@ -260,9 +254,7 @@ def prepare_acoustic_system(
         boundary_dim=boundary_dim,
     )
 
-    # --------------------------------------------------
     # 2c) Volumetric sources (monopoles) -> load vector Q
-    # --------------------------------------------------
     # Volumetric sources belong to the physical fluid: integrating a
     # distributed source over the absorbing layer as well would turn the
     # absorber into a radiator, and make the answer depend on how thick
@@ -274,9 +266,7 @@ def prepare_acoustic_system(
         elements=domain_elements,
     )
 
-    # --------------------------------------------------
     # 3) Dirichlet pressure = 0
-    # --------------------------------------------------
     p0_nodes = get_pressure_zero_nodes(
         boundaries,
         bc.pressure_zero,
@@ -289,9 +279,7 @@ def prepare_acoustic_system(
         p0_nodes,
     )
 
-    # --------------------------------------------------
     # 3b) Absorbing layer, if the mesh names one
-    # --------------------------------------------------
     pml_op = None
     if groups is not None and pml is not False:
         pml_op = pml_from_groups(
@@ -301,9 +289,7 @@ def prepare_acoustic_system(
 
     _check_no_orphan_dofs(K_red, M_red, pml_op, idx_free)
 
-    # --------------------------------------------------
     # 4) Pressure BC (constant + point source)
-    # --------------------------------------------------
     # Each entry carries its own value, so they are mapped one by one
     # and concatenated; the point sources are appended last so that a
     # node shared with a boundary takes the source value.

@@ -39,9 +39,7 @@ from pycafe.solver.solver_modal_forced import (
 from tests.test_bc_dynamic import duct_mesh_2d, duct_mesh_3d, RHO, C0
 
 
-# ---------------------------------------------------------------------------
 # Tests: volume load vector
-# ---------------------------------------------------------------------------
 
 class TestVolumeLoadVector:
 
@@ -70,9 +68,7 @@ class TestVolumeLoadVector:
             volume_load_vector(nodes, {"Line 2": np.array([[1, 2]])}, 2)
 
 
-# ---------------------------------------------------------------------------
 # Tests: point source location
-# ---------------------------------------------------------------------------
 
 class TestPointSourceShape:
 
@@ -108,9 +104,7 @@ class TestPointSourceShape:
             point_source_shape(nodes, elements, [2.5, 0.05])
 
 
-# ---------------------------------------------------------------------------
 # Tests: source operator
-# ---------------------------------------------------------------------------
 
 class TestSourceOperator:
 
@@ -201,9 +195,7 @@ class TestSourceOperator:
             )
 
 
-# ---------------------------------------------------------------------------
 # Tests: modal basis
-# ---------------------------------------------------------------------------
 
 class TestModalBasis:
 
@@ -262,9 +254,7 @@ class TestModalDamping:
         np.testing.assert_allclose(np.diagonal(Ct), 2 * 0.02 * omegas)
 
 
-# ---------------------------------------------------------------------------
 # Tests: modal vs direct sweep
-# ---------------------------------------------------------------------------
 
 def _system(nodes, elements, boundaries, bc):
     from pycafe.core.prepare_acoustic_system import prepare_acoustic_system
@@ -420,9 +410,7 @@ class TestModalVsDirect:
         np.testing.assert_allclose(P1, P2, rtol=1e-8)
 
 
-# ---------------------------------------------------------------------------
 # Tests: direct sweep with source operator through the system dict
-# ---------------------------------------------------------------------------
 
 class TestSourceThroughSystem:
 

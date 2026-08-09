@@ -25,9 +25,7 @@ from pycafe.build_matrices.element_hex8 import element_matrices_hex8
 from pycafe.solver.solver_modale import solve_modal_acoustic_reduced
 
 
-# ---------------------------------------------------------------------------
 # Helper: structured HEXA8 mesh (no gmsh dependency)
-# ---------------------------------------------------------------------------
 
 def make_box_mesh_hex8(Lx, Ly, Lz, nx, ny, nz):
     """
@@ -49,8 +47,6 @@ def make_box_mesh_hex8(Lx, Ly, Lz, nx, ny, nz):
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
-                # ordinamento Gmsh "Hexahedron 8": 4 nodi faccia z=k
-                # in senso antiorario, poi gli stessi a z=k+1
                 n = [
                     nid(i, j, k), nid(i + 1, j, k),
                     nid(i + 1, j + 1, k), nid(i, j + 1, k),
@@ -84,9 +80,7 @@ def build_KM_hex(nodes, elements, c0):
     return K, M
 
 
-# ---------------------------------------------------------------------------
 # Analytical validation
-# ---------------------------------------------------------------------------
 
 class TestModal3DAnalyticalValidation:
     """
@@ -135,9 +129,7 @@ class TestModal3DAnalyticalValidation:
                     assert abs(modes[:, i] @ Md @ modes[:, j]) < 1e-10
 
 
-# ---------------------------------------------------------------------------
 # Convergence
-# ---------------------------------------------------------------------------
 
 class TestModal3DConvergence:
 
@@ -159,9 +151,7 @@ class TestModal3DConvergence:
         assert errs[1] / errs[2] > 2.0
 
 
-# ---------------------------------------------------------------------------
 # End-to-end on the coupling geometry (gmsh required)
-# ---------------------------------------------------------------------------
 
 class TestBoxPlateMeshEndToEnd:
     """
@@ -201,9 +191,7 @@ class TestBoxPlateMeshEndToEnd:
             )
 
 
-# ---------------------------------------------------------------------------
 # Discrete dispersion law (validation notebook: hexa8_cavity_validation.ipynb)
-# ---------------------------------------------------------------------------
 
 class TestDiscreteDispersion:
     """

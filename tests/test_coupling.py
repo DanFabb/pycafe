@@ -82,9 +82,7 @@ def system(mesh):
     return _system(mesh)
 
 
-# ------------------------------------------------------------
 #  COUPLING MATRIX
-# ------------------------------------------------------------
 class TestCouplingMatrix:
 
     def test_built_by_default(self, system):
@@ -193,9 +191,7 @@ class TestCouplingMatrix:
         )
 
 
-# ------------------------------------------------------------
 #  SUPPORT OF THE PLATE
-# ------------------------------------------------------------
 class TestSupport:
 
     def test_simply_supported_keeps_the_edge_rotations(self, mesh):
@@ -280,9 +276,7 @@ class TestSupport:
         assert freqs[6] > freqs[5]
 
 
-# ------------------------------------------------------------
 #  COUPLED EIGENPROBLEM
-# ------------------------------------------------------------
 def _in_vacuo_plate(system, k=4):
     K = system["structural"]["K_red"].tocsc()
     M = system["structural"]["M_red"].tocsc()
@@ -373,9 +367,7 @@ class TestCoupledModes:
         assert np.abs(p).max() > 0.0
 
 
-# ------------------------------------------------------------
 #  COUPLED FREQUENCY RESPONSE
-# ------------------------------------------------------------
 def _centre_plate_dof(system, nodes):
     """Index, in the reduced structural unknowns, of uz at the centre."""
     idx_s = system["structural"]["idx_free"]
@@ -451,9 +443,7 @@ class TestCoupledSweep:
             build_coupled_blocks(uncoupled)
 
 
-# ------------------------------------------------------------
 #  BACK TO THE MESH
-# ------------------------------------------------------------
 def test_solution_scatters_back_onto_the_mesh(mesh, system):
     nodes, _ = mesh
     n = nodes.shape[0]

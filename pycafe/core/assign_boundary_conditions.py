@@ -46,11 +46,9 @@ def assign_boundary_conditions(*, boundaries, nodes, interactive=True):
 
         return choose_boundary_conditions(boundaries, nodes)
 
-    # ------------------------------------------------------------
     # Non-interactive mode: return an empty BC definition suitable for
     # tests and scripted workflows. The solver remains unconstrained
     # unless the caller specifies BCs explicitly.
-    # ------------------------------------------------------------
 
     return (
         [],

@@ -18,9 +18,7 @@
 import numpy as np
 
 
-# ------------------------------------------------------------
 #  GEOMETRY
-# ------------------------------------------------------------
 def tetra4_geometry(x_e):
     """
     Volume and shape function gradients of a linear tetrahedron.
@@ -102,9 +100,7 @@ def tetra4_geometry(x_e):
     return six_v / 6.0, grad_N
 
 
-# ------------------------------------------------------------
 #  SHAPE FUNCTIONS
-# ------------------------------------------------------------
 def tetra4_shape(zeta):
     """
     Shape functions of the linear tetrahedron at a point.
@@ -139,9 +135,7 @@ def tetra4_shape(zeta):
     return zeta.copy()
 
 
-# ------------------------------------------------------------
 #  ELEMENT MATRICES (K_e, M_e)
-# ------------------------------------------------------------
 # Consistent mass, from (15.35): the integral of zeta_i zeta_j over the
 # element is V/10 on the diagonal and V/20 off it, i.e. V/20 times this
 # matrix.

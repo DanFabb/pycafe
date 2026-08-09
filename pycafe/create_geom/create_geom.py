@@ -4,9 +4,7 @@ import gmsh
 import pathlib
 
 
-# ------------------------------------------------------------
 #  Mesh sizing
-# ------------------------------------------------------------
 def compute_mesh_size_from_frequency(fmax, c0=343.0, n_per_wavelength=6):
     """
     Compute mesh size using acoustic wavelength criterion.
@@ -33,9 +31,7 @@ def _set_element_order(element_type):
         raise ValueError(f"Unsupported element type: {element_type}")
 
 
-# ------------------------------------------------------------
 #  Scriptable mesh generators (no input(), no tkinter)
-# ------------------------------------------------------------
 def generate_rectangle_mesh_physical(
     length,
     height,
@@ -192,9 +188,7 @@ def generate_circle_mesh_physical(
     return output_path
 
 
-# ------------------------------------------------------------
 #  Interactive wrapper (terminal prompts + save dialog)
-# ------------------------------------------------------------
 def ask_geometry_type():
     while True:
         choice = input(
@@ -214,9 +208,8 @@ def ask_save_msh_file(default_name="mesh.msh"):
 
     root = tk.Tk()
 
-    # QUESTO È FONDAMENTALE
     root.withdraw()
-    root.update()   # forza l'inizializzazione GUI
+    root.update()
 
     filename = filedialog.asksaveasfilename(
         title="Save Gmsh mesh",

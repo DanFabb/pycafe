@@ -101,9 +101,7 @@ class GmshModel:
         self.groups = {}
         self._gmsh = None
 
-    # ------------------------------------------------------------------
     # context manager
-    # ------------------------------------------------------------------
     def __enter__(self):
         import gmsh
 
@@ -158,9 +156,7 @@ class GmshModel:
         """``gmsh.model.mesh``."""
         return self.gmsh.model.mesh
 
-    # ------------------------------------------------------------------
     # tagging
-    # ------------------------------------------------------------------
     def physical(self, dim, tags, name, *, strict=True):
         """
         Tag entities as a physical group, checking the name.
@@ -235,9 +231,7 @@ class GmshModel:
 
         warnings.warn(message, RuntimeWarning)
 
-    # ------------------------------------------------------------------
     # meshing helpers
-    # ------------------------------------------------------------------
     def structured(self, curves=None, surfaces=None, volumes=None):
         """
         Set up a transfinite (structured) mesh.
@@ -340,9 +334,7 @@ class GmshModel:
         """Open the Gmsh GUI on the current model (blocking)."""
         self.gmsh.fltk.run()
 
-    # ------------------------------------------------------------------
     # reporting
-    # ------------------------------------------------------------------
     def summary(self):
         """Printable list of what has been tagged, with the roles found."""
         if not self.groups:

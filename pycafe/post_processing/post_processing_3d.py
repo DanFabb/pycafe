@@ -58,9 +58,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 P_REF = 2e-5
 
 
-# ------------------------------------------------------------
 #  SURFACE EXTRACTION
-# ------------------------------------------------------------
 # Corner faces of the volume elements, in the Gmsh node ordering.
 # Only corner nodes are used: a second-order element is rendered
 # through its corners, which is enough for a flat-shaded picture.
@@ -156,9 +154,7 @@ def _face_values(faces, nodal_values):
     return np.array([nodal_values[f].mean() for f in faces])
 
 
-# ------------------------------------------------------------
 #  FIGURE SET-UP
-# ------------------------------------------------------------
 def _setup_axes(nodes, faces, elev, azim, figsize, ax=None):
     if ax is None:
         fig = plt.figure(figsize=figsize)
@@ -266,9 +262,7 @@ def _writer_for(filename, fps):
     )
 
 
-# ------------------------------------------------------------
 #  STATIC PLOT
-# ------------------------------------------------------------
 def plot_pressure_3d(
     nodes,
     elements,
@@ -405,9 +399,7 @@ def _default_cmap(cmap, part):
     return plt.get_cmap("rainbow" if part in _SEQUENTIAL_PARTS else "seismic")
 
 
-# ------------------------------------------------------------
 #  CLIPPING
-# ------------------------------------------------------------
 def clip_elements(nodes, elements, axis="x", value=None, keep="<"):
     """
     Keep only the elements lying on one side of a plane.
@@ -478,9 +470,7 @@ def _resolve_faces(nodes, elements, faces, clip):
     return extract_surface_faces(elements)
 
 
-# ------------------------------------------------------------
 #  POINT RESPONSE
-# ------------------------------------------------------------
 def pressure_at_point_3d(p_full, nodes, target, num_closest=4):
     """
     Complex pressure at an arbitrary 3D point, over the whole sweep.
@@ -511,9 +501,7 @@ def pressure_at_point_3d(p_full, nodes, target, num_closest=4):
     )
 
 
-# ------------------------------------------------------------
 #  ANIMATION
-# ------------------------------------------------------------
 def animate_pressure_3d(
     nodes,
     elements,
@@ -706,9 +694,7 @@ def animate_pressure_3d(
     return anim
 
 
-# ------------------------------------------------------------
 #  INTERACTIVE MENU
-# ------------------------------------------------------------
 def default_movie_extension():
     """
     Extension used by the menus when the user does not give one.

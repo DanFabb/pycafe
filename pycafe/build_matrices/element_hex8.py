@@ -14,9 +14,7 @@ _ETA_I = np.array([-1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0])
 _ZETA_I = np.array([-1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0])
 
 
-# ------------------------------------------------------------
 #  GAUSS QUADRATURE
-# ------------------------------------------------------------
 def gauss_rule_hex_2x2x2():
     """
     2x2x2 Gauss quadrature rule for hexahedral elements.
@@ -43,9 +41,7 @@ def gauss_rule_hex_2x2x2():
     return pts[:, 0], pts[:, 1], pts[:, 2], w
 
 
-# ------------------------------------------------------------
 #  SHAPE FUNCTIONS
-# ------------------------------------------------------------
 def hex8_shape(xi, eta, zeta):
     """
     Trilinear shape functions and derivatives for the HEXA8 element.
@@ -69,9 +65,7 @@ def hex8_shape(xi, eta, zeta):
     return N, dN_dxi, dN_deta, dN_dzeta
 
 
-# ------------------------------------------------------------
 #  JACOBIAN
-# ------------------------------------------------------------
 def jacobian_3d(dN_dxi, dN_deta, dN_dzeta, x3d):
     """
     Jacobian of the isoparametric mapping for a 3D element.
@@ -102,9 +96,7 @@ def jacobian_3d(dN_dxi, dN_deta, dN_dzeta, x3d):
     return J, detJ, invJ
 
 
-# ------------------------------------------------------------
 #  B OPERATORS
-# ------------------------------------------------------------
 def B_stiffness_3d(dN_dxi, dN_deta, dN_dzeta, invJ):
     """
     Gradient operator in physical coordinates: (3, 8) matrix of
@@ -119,9 +111,7 @@ def B_mass(N):
     return N.reshape(1, -1)
 
 
-# ------------------------------------------------------------
 #  ELEMENT MATRICES (K_e, M_e)
-# ------------------------------------------------------------
 def element_matrices_hex8(x_e, c, quad_rule=gauss_rule_hex_2x2x2):
     """
     Compute the element stiffness and mass matrices for a CHEXA8 element.

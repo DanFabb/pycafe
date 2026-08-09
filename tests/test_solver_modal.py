@@ -27,9 +27,7 @@ from pycafe.build_matrices.assembly_cquad4 import build_KM_cquad4
 from pycafe.solver.solver_modale import solve_modal_acoustic_reduced
 
 
-# ---------------------------------------------------------------------------
 # Helper: structured CQUAD4 mesh
-# ---------------------------------------------------------------------------
 
 def make_rect_mesh_cquad4(Lx, Ly, nx, ny):
     """Structured rectangular CQUAD4 mesh on [0,Lx]×[0,Ly]."""
@@ -71,9 +69,7 @@ def analytical_rigid_cavity_freqs(Lx, Ly, c0, n_modes=6):
     return freqs[:n_modes]
 
 
-# ---------------------------------------------------------------------------
 # Tests: basic solver correctness
-# ---------------------------------------------------------------------------
 
 class TestModalSolverBasic:
 
@@ -125,9 +121,7 @@ class TestModalSolverBasic:
                     )
 
 
-# ---------------------------------------------------------------------------
 # Tests: analytical validation — first natural frequency
-# ---------------------------------------------------------------------------
 
 class TestModalAnalyticalValidation:
     """
@@ -193,9 +187,7 @@ class TestModalAnalyticalValidation:
             )
 
 
-# ---------------------------------------------------------------------------
 # Tests: mesh convergence study
-# ---------------------------------------------------------------------------
 
 class TestModalConvergence:
     """

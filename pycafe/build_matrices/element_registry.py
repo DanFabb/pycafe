@@ -139,12 +139,9 @@ def find_acoustic_elements(elements):
             f"Mesh element groups: {list(elements.keys())}"
         )
 
-    # Il dominio acustico è il tipo a dimensione massima presente.
     matches.sort(key=lambda m: m[2].dim, reverse=True)
     best = matches[0]
 
-    # Mesh 3D con dominio non registrato (es. tetraedri): il match 2D
-    # sarebbero solo le facce di bordo — avvisa chiaramente.
     if best[2].dim == 2:
         unregistered_3d = [
             key for key in elements

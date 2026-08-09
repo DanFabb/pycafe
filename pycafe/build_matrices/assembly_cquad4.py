@@ -1,4 +1,3 @@
-# assemble_cquad8.py  (versione sparse-ready, senza PML / impedenza)
 import numpy as np
 from .element_cquad4 import (
     element_matrices_cquad4,
@@ -82,7 +81,6 @@ def build_KM_cquad4(
 
     num_nodes = nodes.shape[0]
      
-     # LIL = perfetto per assembly
     K_global = lil_matrix((num_nodes, num_nodes), dtype=float)
     M_global = lil_matrix((num_nodes, num_nodes), dtype=float)
 
@@ -144,10 +142,8 @@ def build_KM_cquad4(
 
     return K_global, M_global, debug_data
 
-# ---------------------------------------------------------------------------
 # Deprecated re-exports: shared BC/reduction functions moved to bc_ops.py.
 # Import them from pycafe.build_matrices.bc_ops instead.
-# ---------------------------------------------------------------------------
 from .bc_ops import (  # noqa: F401
     reduce_KM_dirichlet,
     reduce_KMC_dirichlet_mask,

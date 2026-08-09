@@ -19,11 +19,8 @@ from pycafe.build_matrices.element_hex8 import (
 )
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
-# Coordinate naturali dei vertici (ordinamento Gmsh "Hexahedron 8")
 NAT_COORDS = np.array([
     [-1, -1, -1],
     [ 1, -1, -1],
@@ -45,14 +42,12 @@ def distorted_hex8():
     """A valid but non-parallelepiped hexahedron."""
     x = box_hex8()
     x = x.copy()
-    x[6] += [0.15, 0.10, 0.20]   # sposta un vertice
+    x[6] += [0.15, 0.10, 0.20]
     x[1] += [0.05, -0.02, 0.0]
     return x
 
 
-# ---------------------------------------------------------------------------
 # Shape functions
-# ---------------------------------------------------------------------------
 
 class TestHex8ShapeFunctions:
 
@@ -96,9 +91,7 @@ class TestHex8ShapeFunctions:
             assert np.isclose(p_interp, p_exact, atol=1e-12)
 
 
-# ---------------------------------------------------------------------------
 # Jacobian
-# ---------------------------------------------------------------------------
 
 class TestJacobian3D:
 
@@ -118,7 +111,6 @@ class TestJacobian3D:
     def test_inverted_element_raises(self):
         x_e = box_hex8()
         x_inv = x_e.copy()
-        # scambia le facce bottom/top -> jacobiano negativo
         x_inv = np.vstack([x_e[4:], x_e[:4]])
         _, dxi, deta, dzeta = hex8_shape(0.0, 0.0, 0.0)
         with pytest.raises(ValueError, match="Jacobian"):
@@ -137,9 +129,7 @@ class TestJacobian3D:
         assert np.allclose(grad, [b, c, d], atol=1e-12)
 
 
-# ---------------------------------------------------------------------------
 # Element matrices
-# ---------------------------------------------------------------------------
 
 class TestHex8ElementMatrices:
 

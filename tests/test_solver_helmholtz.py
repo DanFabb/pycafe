@@ -22,9 +22,7 @@ from pycafe.solver.solver_helmholtz_1 import (
 )
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def make_trivial_system(n=10):
     """
@@ -37,9 +35,7 @@ def make_trivial_system(n=10):
     return K, M, C
 
 
-# ---------------------------------------------------------------------------
 # Tests: solve_helmholtz_single_frequency
-# ---------------------------------------------------------------------------
 
 class TestHelmholtzSingleFrequency:
 
@@ -150,9 +146,7 @@ class TestHelmholtzSingleFrequency:
         )
 
 
-# ---------------------------------------------------------------------------
 # Tests: solve_helmholtz_frequency_sweep
-# ---------------------------------------------------------------------------
 
 class TestHelmholtzFrequencySweep:
 
@@ -224,9 +218,7 @@ class TestHelmholtzFrequencySweep:
         assert np.iscomplexobj(P)
 
 
-# ---------------------------------------------------------------------------
 # Tests: build_normal_velocity_rhs
-# ---------------------------------------------------------------------------
 
 class TestNormalVelocityRHS:
 

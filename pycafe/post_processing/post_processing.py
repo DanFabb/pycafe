@@ -47,9 +47,7 @@ def create_pressure_video(
 
     frames = []
 
-    # -----------------------------
     # CREATE FRAMES
-    # -----------------------------
     for i, f in enumerate(frequencies):
         fig, ax = plt.subplots(figsize=(6, 5))
 
@@ -76,16 +74,13 @@ def create_pressure_video(
     if len(frames) == 0:
         raise RuntimeError("No frames generated, video aborted.")
 
-    # -----------------------------
     # CREATE VIDEO
-    # -----------------------------
     first = cv2.imread(frames[0])
     if first is None:
         raise RuntimeError("Failed to read first frame image.")
 
     height, width, _ = first.shape
 
-# forza estensione corretta
     if not filename.lower().endswith(".mp4"):
         filename = filename + ".mp4"
 
@@ -147,9 +142,7 @@ def plot_pressure_frequency_response(frequencies, p_point, label=None):
     ax1.tick_params(axis="y", labelcolor="b")
     ax1.grid(True)
 
-    # -------------------------------------------------
     # PHASE PLOT
-    # -------------------------------------------------
     plt.figure(figsize=(7, 5))
     plt.plot(frequencies, phase, "r--s", linewidth=2)
     plt.xlabel("Frequency [Hz]")
@@ -228,9 +221,7 @@ def run_post_processing(nodes, p_full, frequencies, elements=None):
             nodes[:, :2],
             np.array([x, y])
         )
-        # ----------------------------------------
         # OPTIONAL: SAVE PRESSURE TO FILE
-        # ----------------------------------------
         if _ask_yes_no("Save pressure at this point to a .txt file?"):
             fname = input("Filename [pressure_point.txt]: ").strip()
             if fname == "":
@@ -318,17 +309,13 @@ def weighted_pressure_at_point(
     elif target_xy.size > node_xy.shape[1]:
         target_xy = target_xy[:node_xy.shape[1]]
 
-    # distanza euclidea dai nodi
     distances = np.linalg.norm(node_xy - target_xy, axis=1)
 
-    # nodi più vicini
     idx = np.argsort(distances)[:num_closest]
 
-    # pesi inversamente proporzionali alla distanza
     w = 1.0 / (distances[idx] + np.finfo(float).eps)
     w /= np.sum(w)
 
-    # pressione pesata (su tutte le frequenze)
     p_weighted = np.sum(p_full[idx, :] * w[:, None], axis=0)
 
     return p_weighted

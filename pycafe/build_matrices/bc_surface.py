@@ -27,9 +27,7 @@ from .element_cquad4 import cquad4_shape
 from .element_cquad8 import cquad8_shape
 
 
-# ------------------------------------------------------------
 #  QUADRATURE RULES ON THE REFERENCE BOUNDARY ELEMENT
-# ------------------------------------------------------------
 def _gauss_line(n_points):
     """Gauss-Legendre rule on the reference segment xi in [-1, 1]."""
     xi, w = np.polynomial.legendre.leggauss(n_points)
@@ -68,9 +66,7 @@ def _gauss_tri_degree4():
     return pts, w
 
 
-# ------------------------------------------------------------
 #  SHAPE FUNCTIONS ON THE REFERENCE BOUNDARY ELEMENT
-# ------------------------------------------------------------
 # Every shape routine takes the natural coordinates of one integration
 # point and returns (N, dN) with N of shape (n_nodes,) and dN of shape
 # (n_nodes, dim) -- dim being the topological dimension of the boundary
@@ -141,9 +137,7 @@ def _quad8_shape(pt):
     return N, np.column_stack([dN_dxi, dN_deta])
 
 
-# ------------------------------------------------------------
 #  BOUNDARY ELEMENT CATALOGUE
-# ------------------------------------------------------------
 # Keyed by Gmsh element name, as produced by the mesh loader. `dim` is
 # the topological dimension of the boundary entity: an edge (1) bounds
 # a 2D fluid, a face (2) bounds a 3D one.
@@ -180,9 +174,7 @@ def boundary_element_spec(name):
     return BOUNDARY_ELEMENTS.get(key)
 
 
-# ------------------------------------------------------------
 #  SURFACE JACOBIAN
-# ------------------------------------------------------------
 def _surface_jacobian(dN, x_e):
     """
     Differential measure of a boundary element embedded in 3D space.
@@ -210,9 +202,7 @@ def _surface_jacobian(dN, x_e):
     return float(np.linalg.norm(np.cross(tangent[0], tangent[1])))
 
 
-# ------------------------------------------------------------
 #  BOUNDARY INTEGRALS
-# ------------------------------------------------------------
 def boundary_integrals(nodes, faces_by_type, n_dof):
     """
     Integrate the shape functions over a set of boundary elements.
@@ -302,9 +292,7 @@ def boundary_integrals(nodes, faces_by_type, n_dof):
     return g, S
 
 
-# ------------------------------------------------------------
 #  BOUNDARY RESOLUTION: NAMES / NODE LISTS -> FACE CONNECTIVITY
-# ------------------------------------------------------------
 def _node_set_from_selection(selection, boundaries):
     """
     Collect the 1-based node tags addressed by a boundary selection.

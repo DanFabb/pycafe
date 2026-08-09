@@ -28,9 +28,7 @@ from pycafe.build_matrices.element_cquad8 import (
     gauss_rule_quad_3x3,
 )
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def unit_square_cquad4():
     """Unit square [0,1]^2 — 4 corner nodes, CCW ordering."""
@@ -66,9 +64,7 @@ def unit_square_cquad8():
     ], dtype=float)
 
 
-# ---------------------------------------------------------------------------
 # CQUAD4 Shape Function Tests
-# ---------------------------------------------------------------------------
 
 class TestCQUAD4ShapeFunctions:
 
@@ -105,9 +101,7 @@ class TestCQUAD4ShapeFunctions:
             assert abs(dN_deta.sum()) < 1e-14
 
 
-# ---------------------------------------------------------------------------
 # CQUAD8 Shape Function Tests
-# ---------------------------------------------------------------------------
 
 class TestCQUAD8ShapeFunctions:
 
@@ -160,9 +154,7 @@ class TestCQUAD8ShapeFunctions:
             assert abs(dN_deta.sum()) < 1e-12
 
 
-# ---------------------------------------------------------------------------
 # CQUAD4 Jacobian Tests
-# ---------------------------------------------------------------------------
 
 class TestCQUAD4Jacobian:
 
@@ -196,9 +188,7 @@ class TestCQUAD4Jacobian:
             assert detJ > 0.0
 
 
-# ---------------------------------------------------------------------------
 # CQUAD4 Element Matrix Tests
-# ---------------------------------------------------------------------------
 
 class TestCQUAD4ElementMatrices:
 
@@ -280,9 +270,7 @@ class TestCQUAD4ElementMatrices:
             )
 
 
-# ---------------------------------------------------------------------------
 # CQUAD8 Element Matrix Tests
-# ---------------------------------------------------------------------------
 
 class TestCQUAD8ElementMatrices:
 

@@ -21,9 +21,7 @@ from pycafe.build_matrices.assembly_cquad4 import (
 )
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def make_rect_mesh_cquad4(Lx, Ly, nx, ny):
     """
@@ -60,9 +58,7 @@ def make_dummy_symmetric_sparse(n):
     return sp
 
 
-# ---------------------------------------------------------------------------
 # Tests: get_pressure_zero_nodes
-# ---------------------------------------------------------------------------
 
 class TestGetPressureZeroNodes:
 
@@ -117,9 +113,7 @@ class TestGetPressureZeroNodes:
         assert np.all(p0[:-1] <= p0[1:]), "Output is not sorted"
 
 
-# ---------------------------------------------------------------------------
 # Tests: reduce_KMC_dirichlet_mask
-# ---------------------------------------------------------------------------
 
 class TestReduceKMCDirichlet:
 
@@ -192,9 +186,7 @@ class TestReduceKMCDirichlet:
         assert len(idx_free) == n - 2
 
 
-# ---------------------------------------------------------------------------
 # Tests: Full assembly + reduction on structured mesh
-# ---------------------------------------------------------------------------
 
 class TestAssemblyAndReduction:
 
