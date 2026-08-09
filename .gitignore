@@ -100,4 +100,7 @@ Letteratura_vibroa/
 
 # Mesh e filmati generati dai notebook di esempio
 examples/box_plate_nb.msh
+# Le mesh dello scattering (notebook 05) pesano ~20 MB e le rigenera il
+# notebook stesso.
+examples/scatter_*.msh
 *.gif
