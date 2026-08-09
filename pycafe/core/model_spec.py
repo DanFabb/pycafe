@@ -696,6 +696,74 @@ def _mesh_from_cad_split(source, spec, out_path):
                         verbose=spec.verbose)
 
 
+def _drop_unused_volumes(model, dim, source, verbose=False):
+    """
+    Remove the solids that carry no role, before they are meshed.
+
+    A STEP file of a coupled problem usually holds both bodies: the
+    fluid, and the thing sitting in it. pyCAFE assembles the second one
+    as a shell on its **surface**, so its interior is meshed for nothing
+    -- and worse than nothing, since those nodes then appear in the file
+    with no element to give them an equation, and the acoustic system
+    comes out singular.
+
+    The surfaces that still bound the fluid stay, and so do the ones the
+    user named -- the wet side of a shell is usually one of them. What
+    goes with the solid is the rest: a STEP assembly describes the
+    contact surface once per body, and the copy that belonged to the
+    removed solid would otherwise be meshed on its own, a second set of
+    nodes on the same geometry attached to nothing.
+
+    Parameters
+    ----------
+    model : GmshModel
+        Open model, with the CAD already imported.
+    dim : int
+        Dimension of the fluid domain.
+    source : CadFile
+        The declaration; only the solids named in ``fluid`` are kept,
+        and only the surfaces named in ``structure`` or ``boundaries``
+        survive the loss of their solid.
+    verbose : bool, optional
+
+    Returns
+    -------
+    tuple of (list of int, list of int)
+        Tags of the removed solids and of the removed surfaces.
+    """
+    keep = {int(t) for t in source.fluid}
+    present = [tag for _d, tag in model.model.getEntities(dim)]
+    unused = [tag for tag in present if tag not in keep]
+    if not unused or len(present) == len(unused):
+        return [], []
+
+    # The geometry lives in the OCC kernel, so it is OCC that has to
+    # forget it: removing it from the model alone is undone by the next
+    # synchronize.
+    model.occ.remove([(dim, tag) for tag in unused], recursive=False)
+    model.occ.synchronize()
+
+    # A surface survives if it still bounds a solid, or if it was named.
+    bounding = {abs(tag) for _d, tag in model.model.getBoundary(
+        [(dim, tag) for tag in sorted(keep)], oriented=False, combined=False,
+    )}
+    named = {int(t) for t in source.structure}
+    for tags in source.boundaries.values():
+        named |= {int(t) for t in tags}
+
+    loose = [tag for _d, tag in model.model.getEntities(dim - 1)
+             if tag not in bounding and tag not in named]
+    if loose:
+        model.occ.remove([(dim - 1, tag) for tag in loose], recursive=True)
+        model.occ.synchronize()
+
+    if verbose:
+        print(f"solids {unused} have no role in the model and are not "
+              f"meshed; {len(loose)} surface(s) left without a solid went "
+              f"with them")
+    return unused, loose
+
+
 def _mesh_from_cad(source, spec, out_path):
     """Import, size, tag by the tags the user gave, mesh, write."""
     dim = int(source.dim)
@@ -707,6 +775,7 @@ def _mesh_from_cad(source, spec, out_path):
     with GmshModel(out_path.stem, verbose=spec.verbose,
                    recombine=source.recombine) as m:
         import_cad(m, source.path, source.units, verbose=spec.verbose)
+        _drop_unused_volumes(m, dim, source, verbose=spec.verbose)
         m.size(h)
 
         structured = _try_structured(m, dim, h) if source.recombine else False

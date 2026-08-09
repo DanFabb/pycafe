@@ -295,6 +295,45 @@ def test_cad_file_tags_the_roles_it_is_given(step_box, tmp_path):
     assert model["system"]["coupling"] is not None
 
 
+VIBRO_STEP = pathlib.Path(__file__).resolve().parent.parent / "Geom" \
+    / "Vibro_ac1.step"
+
+
+@pytest.mark.skipif(not VIBRO_STEP.exists(),
+                    reason="Geom/Vibro_ac1.step is not in the checkout")
+def test_the_solid_with_no_role_is_not_meshed(tmp_path):
+    """
+    A body pyCAFE models by its surface must not be meshed inside.
+
+    ``Geom/Vibro_ac1.step`` is the shape of a STEP assembly: a sphere of
+    fluid with a cylinder cut out of it, and the cylinder itself, each
+    solid carrying its own copy of the surface where they touch. Only
+    the sphere is declared here, so the cylinder has no role at all:
+    meshing its interior would put nodes in the file with no element to
+    give them an equation, and the acoustic matrices would be singular
+    before any solve. Its private copy of the contact surface has to go
+    with it, for the same reason.
+    """
+    import numpy as np
+
+    spec = ModelSpec(
+        geometry=CadFile(VIBRO_STEP, units="mm", fluid=[1]),
+        f_max=1000.0,
+        work_dir=tmp_path,
+    )
+    model = build_model(spec, show=False)
+
+    used = set()
+    for conn in model["elements"].values():
+        used |= set(np.asarray(conn).ravel().tolist())
+    orphans = set(range(1, model["nodes"].shape[0] + 1)) - used
+    assert not orphans
+
+    # And the assembled system says the same thing, on the fluid alone.
+    covered = np.diff(model["system"]["K"].tocsr().indptr) > 0
+    assert covered.all()
+
+
 def test_cad_units_are_detected(step_box, tmp_path):
     """The STEP box is written in millimetres and must come back in metres."""
     spec = ModelSpec(
