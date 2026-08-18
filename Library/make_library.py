@@ -33,8 +33,9 @@ STEP = HERE / "Tubo_1m_1m.stp"
 CASES = {
     "box_cavity": (
         Library("box_cavity", Lx=0.4, Ly=0.3, Lz=0.5),
-        500.0,
-        "rigid air box, CHEXA8: the analytical modal case",
+        1000.0,
+        "rigid air box, CHEXA8: the analytical modal case of notebook 01, "
+        "whose twelfth mode is at 924 Hz",
     ),
     "box_with_plate": (
         Library("box_with_plate", Lx=0.8, Ly=0.6, Lz=0.5),

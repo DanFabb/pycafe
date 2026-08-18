@@ -21,7 +21,7 @@ that a run can pick a `.msh` instead of meshing anything.
 
 | file | what it is | built for |
 |---|---|---|
-| `box_cavity.msh` | rigid air box 0.40 × 0.30 × 0.50 m, CHEXA8 — the analytical modal case | 500 Hz |
+| `box_cavity.msh` | rigid air box 0.40 × 0.30 × 0.50 m, CHEXA8 — the analytical modal case of notebook 01, whose twelfth mode is at 924 Hz | 1000 Hz |
 | `box_with_plate.msh` | the same box 0.80 × 0.60 × 0.50 m closed by a flexible plate on `z = Lz`; the plate quadrilaterals *are* faces of the fluid hexahedra, so the interface is conforming | 400 Hz |
 | `duct_2d.msh` | 2D duct 1.0 × 0.1 m with `inlet` and `outlet` — plane waves, impedance ends | 500 Hz |
 | `plate.msh` | a flat 0.40 × 0.30 m shell on its own, clamped edge, for structural checks | 500 Hz |
