@@ -8,7 +8,7 @@ All of them open the same way and state their model the same way, as a
 materials, and the highest frequency of interest. The mesh size is derived from
 that frequency, $h = c_0 / (f_{max}\,n_\lambda)$, with at least 10 elements per
 wavelength; `build_model` meshes, validates, draws and assembles in one call.
-Notebooks 01–03 pin the element counts explicitly because their numbers are
+Notebooks 02–03 pin the element counts explicitly because their numbers are
 quoted against a known mesh — that override is what a convergence study uses.
 
 The opening block states two things before any file is opened: **which run** —
@@ -42,7 +42,7 @@ loading some other geometry. For a run with nobody at the keyboard (CI, or
 | Notebook | What it covers |
 |---|---|
 | `00_master_geometry.ipynb` | **Start here.** No physics: which run you want and what its domains are made of, then load the mesh or the geometry and let pyCAFE work out which it is. The dialog, the four sources, what each one guesses and what it must be told, the `Library/` folder, the naming contract. |
-| `01_cavity_acoustic_3d.ipynb` | Rigid-walled air cavity meshed in `CHEXA8`: the first twelve modes against the analytical modes of a rectangular box. The dialog is the same as everywhere else, but this one accepts **`Library/box_cavity.msh` and nothing else** — the closed form describes that box and no other geometry, so anything else picked stops the run. Sides and element counts are measured on the mesh, never written in the notebook. |
+| `01_cavity_acoustic_3d.ipynb` | Rigid-walled air cavity meshed in `CHEXA8`: the first twelve modes against the analytical modes of a rectangular box. The dialog is the same as everywhere else, but this one accepts **`Library/box_cavity.msh` and nothing else** — the closed form describes that box and no other geometry, so anything else picked stops the run. A `.msh` carries its own sides and element counts, so loading it is the last question about the geometry: nothing about the cavity is written in the notebook. |
 | `02_cavity_plate_coupled.ipynb` | The same kind of box, but one face is a flexible CCCC aluminium plate (`CQUAD4F`). Vibroacoustic coupling: the plate radiates into the cavity and the cavity loads the plate back. Mesh: `plate_cavity.msh`. |
 | `03_duct_from_step_radiation.ipynb` | Full workflow from CAD: `Library/Tubo_1m_1m.stp` → gmsh → physical groups → duct with a flush-mounted panel, driven by a piston and truncated with the plane-wave radiation condition (`add_anechoic`) at both ends. Mesh: `tubo_flush_plate.msh`. |
 | `04_duct_pml_vs_sommerfeld.ipynb` | The two ways of ending a 3D tube, side by side: a perfectly matched layer (a physical group named `pml`) against the plane-wave radiation condition $\zeta = 1$. Below the first cross mode they agree; above it, the wave reaches the end at an angle and only the layer still absorbs it. Meshes are built in the notebook. |
