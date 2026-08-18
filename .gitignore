@@ -100,6 +100,10 @@ Letteratura_vibroa/
 
 # Mesh e filmati generati dai notebook di esempio
 examples/box_plate_nb.msh
+# Meshes notebook 00 writes while it demonstrates the four ways in; the
+# geometries they come from live in Library/.
+examples/00_*.msh
+examples/demo_cavity.msh
 # Le mesh dello scattering (notebook 05) pesano ~20 MB e le rigenera il
 # notebook stesso.
 examples/scatter_*.msh

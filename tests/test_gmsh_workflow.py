@@ -423,10 +423,10 @@ class TestExternal:
 
 # The STEP file shipped with the repository, when it is there
 
-STEP = pathlib.Path(__file__).parent.parent / "Geom" / "Tubo_1m_1m.stp"
+STEP = pathlib.Path(__file__).parent.parent / "Library" / "Tubo_1m_1m.stp"
 
 
-@pytest.mark.skipif(not STEP.exists(), reason="Geom/Tubo_1m_1m.stp not present")
+@pytest.mark.skipif(not STEP.exists(), reason="Library/Tubo_1m_1m.stp not present")
 class TestStepDuct:
 
     def test_units_and_dimensions_are_recovered(self, tmp_path):

@@ -1,13 +1,15 @@
 """
 Geometry and mesh handling: the standard Gmsh workflow of pyCAFE.
 
-Five modules, one per step:
+Seven modules, one per step:
 
 =========================================  =====================================
+:mod:`~pycafe.create_geom.ask`             where is the file? (``uigetfile``)
 :mod:`~pycafe.create_geom.conventions`     what to name the physical groups
 :mod:`~pycafe.create_geom.gmsh_workflow`   how to write a geometry script
 :mod:`~pycafe.create_geom.library`         ready-made parametric geometries
 :mod:`~pycafe.create_geom.external`        CAD files and foreign meshes
+:mod:`~pycafe.create_geom.nastran`         Nastran bulk data decks
 :mod:`~pycafe.create_geom.validation`      is this mesh usable?
 =========================================  =====================================
 
@@ -36,6 +38,7 @@ frequency that sizes the mesh — see
 naming contract at any time.
 """
 
+from .ask import FILE_KINDS, ask_for_file, ask_for_geometry
 from .conventions import (
     CANONICAL,
     REQUIRED_ROLES,
@@ -62,6 +65,17 @@ from .external import (
     retag_mesh,
 )
 from .gmsh_workflow import GmshModel
+from .nastran import (
+    BdfDeck,
+    NastranMaterial,
+    NastranProperty,
+    SpcSet,
+    bdf_to_mesh,
+    free_faces,
+    inspect_bdf,
+    read_bdf,
+    tag_faces,
+)
 from .library import (
     GEOMETRIES,
     box_cavity,
@@ -97,6 +111,11 @@ __all__ = [
     "import_cad", "inspect_cad",
     "on_plane", "in_box", "by_tag", "largest", "everything", "rest",
     "list_groups", "retag_mesh",
+    # asking the user where a file is
+    "FILE_KINDS", "ask_for_file", "ask_for_geometry",
+    # Nastran bulk data
+    "BdfDeck", "NastranProperty", "NastranMaterial", "SpcSet",
+    "read_bdf", "inspect_bdf", "bdf_to_mesh", "free_faces", "tag_faces",
     # validation
     "MeshReport", "validate_mesh", "describe_mesh",
     # loading

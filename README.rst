@@ -116,12 +116,12 @@ is in it:
 
     from pycafe import inspect_cad
 
-    inspect_cad("Geom/Tubo_1m_1m.stp")     # tags, sizes, bounding boxes
+    inspect_cad("Library/Tubo_1m_1m.stp")     # tags, sizes, bounding boxes
     #   dim 3  tag  1   volume 3.000e+00   bbox 3.000 x 1.000 x 1.000
     #   dim 2  tag  5   area   1.000e+00   bbox 1.000 x 1.000 x 0.000
 
     spec = ModelSpec(
-        geometry=CadFile("Geom/Tubo_1m_1m.stp", fluid=[1], structure=[5],
+        geometry=CadFile("Library/Tubo_1m_1m.stp", fluid=[1], structure=[5],
                          units="auto"),     # mm files are detected and scaled
         structure=aluminium(t=2e-3),
         f_max=400.0,

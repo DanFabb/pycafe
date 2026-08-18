@@ -5,6 +5,7 @@ __version__ = "1.0.0"
 _LAZY = {
     "Library": "pycafe.core.model_spec",
     "CadFile": "pycafe.core.model_spec",
+    "NastranFile": "pycafe.core.model_spec",
     "MeshFile": "pycafe.core.model_spec",
     "Fluid": "pycafe.core.model_spec",
     "Structure": "pycafe.core.model_spec",
@@ -121,12 +122,36 @@ def preview(*args, **kwargs):
     return _preview(*args, **kwargs)
 
 
+def ask_for_file(*args, **kwargs):
+    """Where is the file? — the ``uigetfile`` of pyCAFE; see
+    :func:`pycafe.create_geom.ask.ask_for_file`."""
+    from pycafe.create_geom.ask import ask_for_file as _ask_for_file
+
+    return _ask_for_file(*args, **kwargs)
+
+
+def ask_for_geometry(*args, **kwargs):
+    """Ask where the geometry is and read whichever kind it is; see
+    :func:`pycafe.create_geom.ask.ask_for_geometry`."""
+    from pycafe.create_geom.ask import ask_for_geometry as _ask_for_geometry
+
+    return _ask_for_geometry(*args, **kwargs)
+
+
 def inspect_cad(*args, **kwargs):
     """What is inside a CAD file, tag by tag; see
     :func:`pycafe.create_geom.external.inspect_cad`."""
     from pycafe.create_geom.external import inspect_cad as _inspect_cad
 
     return _inspect_cad(*args, **kwargs)
+
+
+def inspect_bdf(*args, **kwargs):
+    """What is inside a Nastran deck, property id by property id; see
+    :func:`pycafe.create_geom.nastran.inspect_bdf`."""
+    from pycafe.create_geom.nastran import inspect_bdf as _inspect_bdf
+
+    return _inspect_bdf(*args, **kwargs)
 
 
 def load_mesh_with_groups(*args, **kwargs):

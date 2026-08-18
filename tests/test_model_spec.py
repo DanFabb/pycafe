@@ -35,6 +35,7 @@ from pycafe.core.model_spec import (  # noqa: E402
     aluminium,
     build_mesh,
     build_model,
+    describe_domains,
     element_size_for,
     steel,
 )
@@ -295,17 +296,17 @@ def test_cad_file_tags_the_roles_it_is_given(step_box, tmp_path):
     assert model["system"]["coupling"] is not None
 
 
-VIBRO_STEP = pathlib.Path(__file__).resolve().parent.parent / "Geom" \
+VIBRO_STEP = pathlib.Path(__file__).resolve().parent.parent / "Library" \
     / "Vibro_ac1.step"
 
 
 @pytest.mark.skipif(not VIBRO_STEP.exists(),
-                    reason="Geom/Vibro_ac1.step is not in the checkout")
+                    reason="Library/Vibro_ac1.step is not in the checkout")
 def test_the_solid_with_no_role_is_not_meshed(tmp_path):
     """
     A body pyCAFE models by its surface must not be meshed inside.
 
-    ``Geom/Vibro_ac1.step`` is the shape of a STEP assembly: a sphere of
+    ``Library/Vibro_ac1.step`` is the shape of a STEP assembly: a sphere of
     fluid with a cylinder cut out of it, and the cylinder itself, each
     solid carrying its own copy of the surface where they touch. Only
     the sphere is declared here, so the cylinder has no role at all:
@@ -421,6 +422,53 @@ def test_plot_geometry_accepts_a_2d_mesh(tmp_path):
 
     assert ax.get_legend() is not None
     plt.close("all")
+
+
+# domains and their materials
+class TestDescribeDomains:
+    """Which group is which domain, and what fills it."""
+
+    def _report(self, tmp_path, analysis, structure):
+        spec = ModelSpec(
+            geometry=Library("box_with_plate", Lx=0.4, Ly=0.3, Lz=0.5,
+                             nx=4, ny=3, nz=4),
+            fluid=AIR, structure=structure, f_max=200.0,
+            analysis=analysis, work_dir=tmp_path,
+        )
+        _path, report = build_mesh(spec)
+        return report
+
+    def test_each_domain_is_paired_with_its_material(self, tmp_path):
+        report = self._report(tmp_path, "vibroacoustic",
+                              aluminium(t=2e-3, support="clamped"))
+        text = describe_domains(report, AIR, aluminium(t=2e-3,
+                                                       support="clamped"))
+        assert "fluid" in text and "'fluid'" in text and "air" in text
+        assert "structure" in text and "'plate'" in text
+        assert "2.00 mm" in text
+        # The mesh says which nodes are held, the material says how.
+        assert "'plate_clamp'" in text and "clamped" in text
+
+    def test_a_missing_material_is_named(self, tmp_path):
+        report = self._report(tmp_path, "vibroacoustic", None)
+        text = describe_domains(report, AIR, None)
+        assert "no structure given" in text
+
+    def test_an_acoustic_run_has_one_domain(self, tmp_path):
+        spec = ModelSpec(geometry=Library("box_cavity", nx=4, ny=3, nz=4),
+                         fluid=AIR, f_max=200.0, analysis="acoustic",
+                         work_dir=tmp_path)
+        _path, report = build_mesh(spec)
+        text = describe_domains(report, AIR, None)
+        assert "structure" not in text
+
+    def test_vibroacoustic_on_a_fluid_only_mesh_is_refused(self, tmp_path):
+        # The pairing cannot even be reached: validate_mesh stops it.
+        spec = ModelSpec(geometry=Library("box_cavity", nx=4, ny=3, nz=4),
+                         fluid=AIR, structure=aluminium(t=2e-3), f_max=200.0,
+                         analysis="vibroacoustic", work_dir=tmp_path)
+        with pytest.raises(RuntimeError, match="no structure domain"):
+            build_mesh(spec)
 
 
 # helpers

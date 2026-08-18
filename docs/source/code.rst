@@ -110,6 +110,12 @@ groups with element connectivity.
 .. automodule:: pycafe.create_geom.visualize_mesh
    :members:
 
+.. automodule:: pycafe.create_geom.nastran
+   :members:
+
+.. automodule:: pycafe.create_geom.ask
+   :members:
+
 Physical group conventions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

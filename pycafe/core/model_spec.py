@@ -31,12 +31,13 @@ only; a thin panel driven above its coincidence frequency has a shorter
 bending wavelength than the sound in the fluid, and there the plate mesh
 has to be checked separately.
 
-Three kinds of geometry are accepted, and they are the answer to "where
+Four kinds of geometry are accepted, and they are the answer to "where
 does the model come from":
 
 =====================  ==============================================
 :class:`Library`       we build it, from parameters (cavity, duct, ...)
 :class:`CadFile`       the user brings a STEP/IGES file
+:class:`NastranFile`   the user brings a Nastran bulk data deck
 :class:`MeshFile`      the user brings a mesh already
 =====================  ==============================================
 
@@ -44,7 +45,9 @@ A CAD file carries no roles, so :class:`CadFile` asks for them
 explicitly: which entity tags are the fluid, which are the structure.
 Get the tags from
 :func:`~pycafe.create_geom.external.inspect_cad`, which prints what the
-file contains.
+file contains. A ``.bdf`` names its parts by property id instead, and
+:func:`~pycafe.create_geom.nastran.inspect_bdf` prints those together
+with the property and material cards behind them.
 """
 
 import math
@@ -300,6 +303,109 @@ class CadFile:
 
 
 @dataclass
+class NastranFile:
+    """
+    A Nastran bulk data deck the user brings in, plus its roles.
+
+    The deck already holds a mesh, so nothing is remeshed and ``f_max``
+    no longer sizes anything: it is only checked against what the mesh
+    can resolve. What the deck does *not* hold is physical groups —
+    the format has none — so the roles are stated here by **property
+    id**, which is what Gmsh turns each entity tag into. Run
+    :func:`~pycafe.create_geom.nastran.inspect_bdf` on the file first:
+    it lists every property id with its element count, its ``PSHELL`` /
+    ``PSOLID`` and material cards, and the role it looks like.
+
+    Parameters
+    ----------
+    path : str or Path
+        The ``.bdf`` or ``.nas`` file.
+    fluid : sequence of int
+        Property ids of the acoustic domain.
+    structure : sequence of int, optional
+        Property ids of the shell elements that are the structure.
+    boundaries : dict, optional
+        ``{group_name: [pids]}`` for surface property ids the deck
+        already carries, given the free names the boundary conditions
+        will select them by.
+    surface_rules : sequence of TagRule, optional
+        Names given to the **free faces of the fluid**, the ones no
+        surface element covers. An acoustic deck usually holds volume
+        elements only, so without this there is no face for an
+        impedance or a prescribed velocity to act on. Same rules as
+        everywhere else: ``on_plane("x", 0.0, name="inlet")``,
+        ``in_box(...)``.
+    walls : str or None, optional
+        Name for the free faces no rule claimed. Default
+        ``"rigid_walls"``, which is the natural boundary condition
+        anyway; ``None`` leaves them out of the mesh.
+    clamp : {"spc"}, int, sequence of int or None, optional
+        The support of the structure. ``"spc"`` (default) reads the
+        single ``SPC``/``SPC1`` set of the deck, an integer picks one
+        by id, a sequence gives the grid ids. Which degrees of freedom
+        are blocked is not read from the card — that is
+        ``Structure.support``.
+    units : {"m", "auto", "mm", "cm", "in"}, optional
+        Unit of the deck. A bulk data file records none, so the default
+        is to take the coordinates as written.
+
+    Notes
+    -----
+    The thickness and the material of the deck are used only for the
+    fields the spec left out: pass a :class:`Structure` or a
+    :class:`Fluid` and the spec wins, with the disagreement reported.
+    See :func:`build_model`.
+
+    Raises
+    ------
+    ValueError
+        If neither a fluid nor a structure property id is given.
+    """
+
+    path: Union[str, pathlib.Path]
+    fluid: Sequence[int] = ()
+    structure: Sequence[int] = ()
+    boundaries: Dict[str, Sequence[int]] = field(default_factory=dict)
+    surface_rules: Sequence = ()
+    walls: Optional[str] = "rigid_walls"
+    clamp: Union[str, int, Sequence[int], None] = "spc"
+    units: str = "m"
+
+    def __post_init__(self):
+        self.path = pathlib.Path(self.path)
+        if not self.path.exists():
+            raise FileNotFoundError(f"No bulk data file at {self.path}.")
+        if not tuple(self.fluid) and not tuple(self.structure):
+            raise ValueError(
+                f"NastranFile({self.path.name}) needs the property ids of "
+                "the fluid, of the structure, or of both: a bulk data file "
+                "carries no roles. Run inspect_bdf(path) to see what is in "
+                "it."
+            )
+        self._deck = None
+
+    @property
+    def deck(self):
+        """
+        The cards Gmsh discards (:class:`~pycafe.create_geom.nastran.BdfDeck`).
+
+        Read once and kept, since both the mesh and the materials are
+        taken from it.
+        """
+        if self._deck is None:
+            from pycafe.create_geom.nastran import read_bdf
+
+            self._deck = read_bdf(self.path)
+        return self._deck
+
+    def inspect(self, **kwargs):
+        """Shortcut for :func:`~pycafe.create_geom.nastran.inspect_bdf`."""
+        from pycafe.create_geom.nastran import inspect_bdf
+
+        return inspect_bdf(self.path, units=self.units, **kwargs)
+
+
+@dataclass
 class MeshFile:
     """
     A mesh the user brings in, optionally with its groups renamed.
@@ -328,7 +434,121 @@ class MeshFile:
             raise FileNotFoundError(f"No mesh at {self.path}.")
 
 
-GeometrySource = Union[Library, CadFile, MeshFile]
+GeometrySource = Union[Library, CadFile, NastranFile, MeshFile]
+
+# Which extension is which kind of input. A file the user picks says what
+# it is by its name, and that is the whole of the dispatch below.
+GEOMETRY_SUFFIXES = {
+    ".step": "cad", ".stp": "cad", ".iges": "cad", ".igs": "cad",
+    ".brep": "cad",
+    ".msh": "mesh",
+    ".bdf": "nastran", ".nas": "nastran", ".dat": "nastran",
+}
+
+
+def geometry_from_file(path, *, fluid=None, structure=None, verbose=True,
+                       **kwargs):
+    """
+    Turn a file the user picked into the geometry source that reads it.
+
+    The three inputs pyCAFE accepts from outside are told apart by their
+    extension, and each one answers the role question differently:
+
+    ==================  ==========================================
+    ``.step`` ``.stp``  :class:`CadFile` — meshed here; a CAD file
+    ``.iges`` ``.brep``   carries no roles, so without ``fluid``
+                          every solid is taken as the fluid
+    ``.bdf`` ``.nas``   :class:`NastranFile` — already meshed; the
+                          roles are read from the property and
+                          material cards
+                          (:meth:`~pycafe.create_geom.nastran.BdfDeck.suggest_roles`)
+    ``.msh``            :class:`MeshFile` — already meshed *and*
+                          already named, nothing to guess
+    ==================  ==========================================
+
+    What is guessed is printed, because a guess about which solid is the
+    fluid is exactly the kind of thing that must not pass silently. Pass
+    ``fluid=`` / ``structure=`` to state it instead — CAD entity tags
+    from :func:`~pycafe.create_geom.external.inspect_cad`, property ids
+    from :func:`~pycafe.create_geom.nastran.inspect_bdf`.
+
+    Parameters
+    ----------
+    path : str or Path
+    fluid : sequence of int, optional
+        Entity tags (CAD) or property ids (Nastran) of the fluid.
+    structure : sequence of int, optional
+        Same, for the flexible structure.
+    verbose : bool, optional
+        Print the source that was built and what was assumed.
+    **kwargs
+        Passed to the source: ``units``, ``boundaries``, ``recombine``,
+        ``independent_structure``, ``rename``, ``drop``, ...
+
+    Returns
+    -------
+    CadFile, NastranFile or MeshFile
+
+    Raises
+    ------
+    FileNotFoundError
+        If there is no such file.
+    ValueError
+        For an extension that is none of the above.
+
+    Examples
+    --------
+    >>> geometry_from_file("Library/box_cavity.msh")     # doctest: +SKIP
+    MeshFile(path=PosixPath('Library/box_cavity.msh'), rename={}, drop=())
+    """
+    path = pathlib.Path(path).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(f"No file at {path}.")
+
+    kind = GEOMETRY_SUFFIXES.get(path.suffix.lower())
+    if kind is None:
+        raise ValueError(
+            f"{path.name}: pyCAFE reads CAD files "
+            f"({', '.join(s for s, k in GEOMETRY_SUFFIXES.items() if k == 'cad')}), "
+            "Nastran decks (.bdf, .nas, .dat) and Gmsh meshes (.msh), not "
+            f"'{path.suffix}'."
+        )
+
+    if kind == "mesh":
+        source = MeshFile(path, **kwargs)
+        if verbose:
+            print(f"{path.name}: a mesh, used as it is (its physical groups "
+                  "already carry the roles).")
+        return source
+
+    if kind == "nastran":
+        from pycafe.create_geom.nastran import read_bdf
+
+        if fluid is None or structure is None:
+            roles = read_bdf(path).suggest_roles()
+            if fluid is None:
+                fluid = [pid for pid, _why in roles["fluid"]]
+            if structure is None:
+                structure = [pid for pid, _why in roles["structure"]]
+            if verbose:
+                print(f"{path.name}: a Nastran deck. Roles read from the "
+                      f"cards — fluid PID {list(fluid)}, structure PID "
+                      f"{list(structure)}. Check them with inspect_bdf.")
+        return NastranFile(path, fluid=tuple(fluid), structure=tuple(structure),
+                           **kwargs)
+
+    units = kwargs.get("units", "auto")
+    dim = int(kwargs.get("dim", 3))
+    if fluid is None:
+        found = inspect_cad(path, units=units, dims=(dim,), verbose=False)
+        fluid = [info.tag for info in found[dim]]
+        if verbose:
+            print(f"{path.name}: a CAD file, meshed here. It carries no "
+                  f"roles, so its {len(fluid)} solid(s) {fluid} are taken as "
+                  "the fluid and nothing as the structure. Run inspect_cad "
+                  "and pass fluid=/structure= to say otherwise.")
+    return CadFile(path, fluid=tuple(fluid),
+                   structure=tuple(structure or ()), **kwargs)
 
 
 def _same_file(a, b):
@@ -823,6 +1043,101 @@ def _mesh_from_cad(source, spec, out_path):
     return out
 
 
+def _mesh_from_bdf(source, spec, out_path):
+    """Read the deck, name its property ids, write the pyCAFE mesh."""
+    from pycafe.create_geom.nastran import bdf_to_mesh
+
+    return bdf_to_mesh(
+        source.path, out_path,
+        fluid=source.fluid, structure=source.structure,
+        boundaries=source.boundaries, surface_rules=source.surface_rules,
+        walls=source.walls, clamp=source.clamp, units=source.units,
+        deck=source.deck, validate=False, verbose=spec.verbose,
+    )
+
+
+def materials_from_deck(spec):
+    """
+    Fill the materials the spec left out with what the deck states.
+
+    A bulk data file carries the thickness and the material cards, so a
+    :class:`NastranFile` model can state them once, in the deck, instead
+    of twice. The rule is the one that keeps the spec authoritative:
+
+    * a field the spec **gives** wins, and a deck that disagrees with it
+      is reported as a warning rather than silently overridden;
+    * a field the spec **leaves out** — no :class:`Structure`, or the
+      default :data:`AIR` still in place — is taken from the deck.
+
+    Parameters
+    ----------
+    spec : ModelSpec
+        Its geometry must be a :class:`NastranFile`.
+
+    Returns
+    -------
+    fluid : Fluid
+    structure : Structure or None
+    notes : list of str
+        What was taken from the deck, one line each, for reporting.
+
+    Warns
+    -----
+    RuntimeWarning
+        When a material given in the spec and one written in the deck
+        describe different matter.
+    """
+    source = spec.geometry
+    deck = source.deck
+    notes = []
+    fluid, structure = spec.fluid, spec.structure
+
+    deck_fluid = next(
+        (m for m in (deck.material_of(pid) for pid in source.fluid)
+         if m is not None and m.is_fluid and m.rho and m.c0), None
+    )
+    if deck_fluid is not None:
+        if fluid is AIR:
+            fluid = Fluid(rho0=float(deck_fluid.rho), c0=float(deck_fluid.c0),
+                          name=f"{deck_fluid.card} {deck_fluid.mid}")
+            notes.append(
+                f"fluid from the deck: rho0 = {fluid.rho0} kg/m3, "
+                f"c0 = {fluid.c0} m/s ({fluid.name})"
+            )
+        elif (abs(deck_fluid.rho - fluid.rho0) > 1e-3 * fluid.rho0
+                or abs(deck_fluid.c0 - fluid.c0) > 1e-3 * fluid.c0):
+            warnings.warn(
+                f"the spec asks for {fluid.name} (rho0 = {fluid.rho0}, "
+                f"c0 = {fluid.c0}) while {deck.path.name} states "
+                f"rho = {deck_fluid.rho}, c0 = {deck_fluid.c0} on "
+                f"{deck_fluid.card} {deck_fluid.mid}. The spec is used.",
+                RuntimeWarning,
+            )
+
+    if structure is None:
+        for pid in source.structure:
+            prop = deck.properties.get(int(pid))
+            mat = deck.material_of(pid)
+            if prop is None or prop.thickness is None:
+                continue
+            kwargs = dict(t=float(prop.thickness),
+                          name=f"PSHELL {prop.pid}")
+            if mat is not None and not mat.is_fluid:
+                for key, value in (("E", mat.E), ("nu", mat.nu),
+                                   ("rho_s", mat.rho)):
+                    if value is not None:
+                        kwargs[key] = float(value)
+            structure = Structure(**kwargs)
+            notes.append(
+                f"structure from the deck: t = {structure.t * 1e3:.2f} mm, "
+                f"E = {structure.E / 1e9:.0f} GPa, nu = {structure.nu}, "
+                f"rho = {structure.rho_s} kg/m3 ({structure.name})"
+            )
+            break
+
+    return fluid, structure, notes
+
+
 def build_mesh(spec):
     """
     Build (or fetch) the mesh of a spec and check it.
@@ -860,6 +1175,9 @@ def build_mesh(spec):
     elif isinstance(source, CadFile):
         path = _mesh_from_cad(source, spec, out_path)
 
+    elif isinstance(source, NastranFile):
+        path = _mesh_from_bdf(source, spec, out_path)
+
     elif isinstance(source, MeshFile):
         if source.rename or source.drop:
             # out_path is never source.path unless the user named it
@@ -873,8 +1191,8 @@ def build_mesh(spec):
 
     else:
         raise TypeError(
-            "spec.geometry must be a Library, CadFile or MeshFile, not "
-            f"{type(source).__name__}."
+            "spec.geometry must be a Library, CadFile, NastranFile or "
+            f"MeshFile, not {type(source).__name__}."
         )
 
     report = validate_mesh(str(path), analysis=spec.analysis,
@@ -886,6 +1204,83 @@ def build_mesh(spec):
             f"the mesh does not satisfy the pyCAFE contract:\n{report}"
         )
     return path, report
+
+
+def describe_domains(report, fluid=None, structure=None):
+    """
+    Which physical group is which domain, and which material fills it.
+
+    The check to read between "a file was loaded" and "a system was
+    assembled": the mesh says *which* groups are there and what role
+    each one plays, the spec says *what they are made of*, and this puts
+    the two side by side. A vibroacoustic run needs both domains and a
+    material for each; anything missing is named here rather than
+    further down, where it turns into a KeyError or, worse, a silent
+    default.
+
+    Parameters
+    ----------
+    report : MeshReport
+        From :func:`build_mesh` or
+        :func:`~pycafe.create_geom.validation.validate_mesh`.
+    fluid : Fluid, optional
+        The material of the acoustic domain.
+    structure : Structure, optional
+        The material and thickness of the structural domain.
+
+    Returns
+    -------
+    str
+        Printable, one line per domain.
+
+    Examples
+    --------
+    >>> path, report = build_mesh(spec)                  # doctest: +SKIP
+    >>> print(describe_domains(report, spec.fluid, spec.structure))
+    ... # doctest: +SKIP
+    """
+    roles = report.roles
+    analysis = report.analysis
+    lines = [f"domains in {pathlib.Path(report.source).name} "
+             f"({analysis} analysis)"]
+
+    def row(what, group, material):
+        return f"  {what:<11s} group {group!r:<16s} <- {material}"
+
+    if "fluid" in roles:
+        lines.append(row(
+            "fluid", roles["fluid"],
+            f"{fluid.name}: rho0 = {fluid.rho0} kg/m3, c0 = {fluid.c0} m/s"
+            if fluid is not None else
+            "no fluid given (Fluid(rho0, c0), or the default AIR)",
+        ))
+    elif analysis in ("acoustic", "vibroacoustic"):
+        lines.append("  fluid       missing: no group named fluid / acoustic "
+                     "/ domain in this mesh")
+
+    if "structure" in roles:
+        lines.append(row(
+            "structure", roles["structure"],
+            f"{structure.name}: t = {structure.t * 1e3:.2f} mm, "
+            f"E = {structure.E / 1e9:.0f} GPa, nu = {structure.nu}, "
+            f"rho = {structure.rho_s} kg/m3"
+            if structure is not None else
+            "no structure given: pass structure=aluminium(t=2e-3)",
+        ))
+    elif analysis in ("vibroacoustic", "structural"):
+        lines.append("  structure   missing: no group named plate / structure "
+                     "/ shell in this mesh")
+
+    if "clamp" in roles:
+        support = structure.support if structure is not None else "unset"
+        lines.append(row("support", roles["clamp"],
+                         f"{support} (the mesh says which nodes are held, "
+                         "Structure.support says how)"))
+
+    for note in report.notes:
+        if note.startswith("selectable boundaries"):
+            lines.append(f"  {note}")
+    return "\n".join(lines)
 
 
 # assembling
@@ -947,9 +1342,12 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
     Returns
     -------
     dict
-        ``spec``, ``mesh_path``, ``report``, ``analysis``, the loaded
-        mesh (``nodes``, ``elements``, ``boundaries``, ``groups``) and
-        ``system``, the output of
+        ``spec``, ``mesh_path``, ``report``, ``analysis``, the
+        materials actually used (``fluid``, ``structure`` — the same as
+        the spec's, except where a :class:`NastranFile` deck filled in
+        what the spec left out, see :func:`materials_from_deck`), the
+        loaded mesh (``nodes``, ``elements``, ``boundaries``,
+        ``groups``) and ``system``, the output of
         :func:`~pycafe.core.prepare_acoustic_system.prepare_acoustic_system`
         or
         :func:`~pycafe.core.prepare_vibroacoustic_system.prepare_vibroacoustic_system`.
@@ -982,8 +1380,14 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
         options.setdefault("title", f"{path.name} — {report.analysis} model")
         plot_geometry(nodes, groups, **options)
 
+    fluid, structure = spec.fluid, spec.structure
+    if isinstance(spec.geometry, NastranFile):
+        fluid, structure, notes = materials_from_deck(spec)
+        for note in notes:
+            print(note)
+
     analysis = report.analysis if spec.analysis == "auto" else spec.analysis
-    if analysis in ("vibroacoustic", "structural") and spec.structure is None:
+    if analysis in ("vibroacoustic", "structural") and structure is None:
         raise ValueError(
             f"the mesh holds a structural group ('{report.roles.get('structure')}') "
             "but the spec has no Structure: give one, e.g. "
@@ -995,10 +1399,10 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
             prepare_vibroacoustic_system,
         )
 
-        s = spec.structure
+        s = structure
         system = prepare_vibroacoustic_system(
             nodes=nodes, groups=groups,
-            rho0=spec.fluid.rho0, c0=spec.fluid.c0,
+            rho0=fluid.rho0, c0=fluid.c0,
             t=s.t, rho_s=s.rho_s, E=s.E, nu=s.nu, nsm=s.nsm,
             support=s.support,
             build_coupling=spec.build_coupling,
@@ -1009,7 +1413,7 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
 
         system = prepare_acoustic_system(
             nodes=nodes, elements=elements, boundaries=boundaries,
-            rho=spec.fluid.rho0, c0=spec.fluid.c0,
+            rho=fluid.rho0, c0=fluid.c0,
             bc=AcousticBC() if bc is None else bc,
             groups=groups, pml=spec.pml,
         )
@@ -1024,6 +1428,8 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
         "mesh_path": path,
         "report": report,
         "analysis": analysis,
+        "fluid": fluid,
+        "structure": structure,
         "nodes": nodes,
         "elements": elements,
         "boundaries": boundaries,

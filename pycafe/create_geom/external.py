@@ -325,8 +325,8 @@ def inspect_cad(cad_path, *, units="auto", dims=(3, 2), verbose=True):
 
     Examples
     --------
-    >>> inspect_cad("Geom/Tubo_1m_1m.stp")           # doctest: +SKIP
-    Geom/Tubo_1m_1m.stp  (scaled by 0.001 to metres)
+    >>> inspect_cad("Library/Tubo_1m_1m.stp")        # doctest: +SKIP
+    Library/Tubo_1m_1m.stp  (scaled by 0.001 to metres)
       dim 3  tag   1   volume 3.000e+00   bbox 3.000 x 1.000 x 1.000 ...
     """
     cad_path = pathlib.Path(cad_path)
