@@ -12,7 +12,7 @@
 #   * spherical wave radiation              -> a matrix of its own, plus a
 #                                              right-hand side when an
 #                                              incident field crosses it
-#   * rigid wall                            -> nothing (homogeneous Neumann)
+#   * hard wall                            -> nothing (homogeneous Neumann)
 #
 # The fifth, prescribed pressure (Dirichlet), is an essential condition
 # handled by direct assignment and DOF elimination in
@@ -64,7 +64,7 @@ def make_admittance(Z, rho, c0):
         - ``Z = f`` with ``f(omega)`` returning an impedance : a
           frequency-dependent liner. Interpreted as normalized unless
           wrapped as ``(f, "abs")``.
-        - ``Z = 0`` or ``Z = None`` : rigid wall, no contribution.
+        - ``Z = 0`` or ``Z = None`` : hard wall, no contribution.
     rho : float
         Fluid density.
     c0 : float
@@ -74,7 +74,7 @@ def make_admittance(Z, rho, c0):
     -------
     admittance : callable or None
         ``admittance(omega) -> complex`` in m/(Pa*s), or ``None`` for a
-        rigid wall (which contributes nothing to ``C``).
+        hard wall (which contributes nothing to ``C``).
 
     Raises
     ------
@@ -104,7 +104,7 @@ def make_admittance(Z, rho, c0):
     if Z is None:
         return None
     if not callable(Z) and Z == 0:
-        # Legacy meaning of Z = 0: rigid wall, no impedance boundary.
+        # Legacy meaning of Z = 0: hard wall, no impedance boundary.
         return None
 
     scale = 1.0 if unit == "absolute" else rho * c0
@@ -318,7 +318,7 @@ class AcousticBC:
 
     # ---------------- construction helpers ----------------
     def add_rigid_wall(self, selection):
-        """No-op, kept for readability: a rigid wall adds no term."""
+        """No-op, kept for readability: a hard wall adds no term."""
         return self
 
     def add_velocity(self, selection, v_n):
@@ -984,7 +984,7 @@ def build_impedance_operator(
     for entry in bc.impedance:
         admittance = make_admittance(entry.Z, rho, c0)
         if admittance is None:
-            continue                      # rigid wall: nothing to add
+            continue                      # hard wall: nothing to add
         faces = resolve_boundary_faces(
             entry.selection,
             nodes=nodes,
@@ -1129,7 +1129,7 @@ def build_velocity_operator(
     terms = []
     for entry in bc.velocity:
         if not callable(entry.v_n) and entry.v_n == 0:
-            continue                      # rigid wall
+            continue                      # hard wall
         faces = resolve_boundary_faces(
             entry.selection,
             nodes=nodes,
@@ -1226,3 +1226,132 @@ def build_source_operator(
         terms.append((g, _as_callable(src.q)))
 
     return AcousticSourceOperator(n_dof, terms, rho)
+
+
+def build_acoustic_load(bc, frequencies, *, nodes, rho, idx=None,
+                        boundaries=None, groups=None, elements=None,
+                        boundary_dim=None):
+    """
+    The fluid load of a boundary condition set, frequency by frequency.
+
+    The Helmholtz solver takes its operators and evaluates them itself;
+    the coupled solver takes a **vector**, so what a monopole and a
+    prescribed velocity contribute has to be assembled at every line of
+    the sweep. That is what this does, and it is the same
+    ``V_n(omega) + Q(omega)`` the acoustic path assembles internally.
+
+    Parameters
+    ----------
+    bc : AcousticBC
+        Only its ``monopoles`` and ``velocity`` entries are used: a
+        pressure condition is not a load but a constraint.
+    frequencies : array-like (N_freq,)
+        The sweep [Hz].
+    nodes : ndarray (N, 3)
+    rho : float
+        Fluid density [kg/m3].
+    idx : array-like of int, optional
+        Fluid nodes the load is restricted to, typically
+        ``blocks["idx_a"]``. Default: every node.
+    boundaries, groups, elements, boundary_dim
+        Mesh information used to resolve a velocity face; same meaning
+        as in :func:`build_impedance_operator`.
+
+    Returns
+    -------
+    ndarray (n, N_freq) complex, or None
+        None when nothing in ``bc`` loads the fluid, which is what the
+        solvers take to mean "no acoustic load".
+
+    See Also
+    --------
+    build_velocity_operator, build_source_operator
+    pycafe.solver.solver_vibroacoustic.solve_vibroacoustic_frequency_sweep
+    """
+    bc = AcousticBC.from_legacy(bc)
+    velocity = build_velocity_operator(
+        bc, nodes=nodes, rho=rho, boundaries=boundaries, groups=groups,
+        elements=elements, boundary_dim=boundary_dim,
+    )
+    source = build_source_operator(bc, nodes=nodes, rho=rho,
+                                   elements=elements)
+    if velocity.is_empty and source.is_empty:
+        return None
+
+    frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+    rows = np.arange(np.asarray(nodes).shape[0]) if idx is None \
+        else np.asarray(idx, dtype=int)
+
+    load = np.zeros((rows.size, frequencies.size), dtype=complex)
+    for column, f in enumerate(frequencies):
+        omega = 2.0 * np.pi * f
+        total = np.zeros(np.asarray(nodes).shape[0], dtype=complex)
+        if not velocity.is_empty:
+            total += velocity.at(omega)
+        if not source.is_empty:
+            total += source.at(omega)
+        load[:, column] = total[rows]
+    return load
+
+
+def prescribed_pressure(bc, *, boundaries=None, groups=None):
+    """
+    Which nodes carry a prescribed pressure, and what value each holds.
+
+    A pressure is not a load but a constraint, so it never reaches a
+    load vector: the solvers partition it out. This collects the three
+    ways of asking for one — a face at ``p = 0``, a face at a value, a
+    single node at a value — into the two arrays a partition needs.
+
+    Parameters
+    ----------
+    bc : AcousticBC
+    boundaries : dict, optional
+        ``{name: node tags}``, **1-based**, as the mesh loader returns
+        them.
+    groups : dict, optional
+        Physical groups, used for a name ``boundaries`` does not hold.
+
+    Returns
+    -------
+    nodes0 : ndarray of int
+        0-based node indices, each appearing once.
+    values : ndarray of complex
+        The pressure held there [Pa]. Where two conditions name the same
+        node, the later one wins, which is the rule the acoustic path
+        already follows.
+
+    See Also
+    --------
+    pycafe.solver.solver_vibroacoustic.solve_vibroacoustic_frequency_sweep
+    """
+    bc = AcousticBC.from_legacy(bc)
+
+    def face_nodes(name):
+        if boundaries and name in boundaries:
+            tags = boundaries[name]
+        elif groups and name in groups:
+            tags = groups[name]["nodes"]
+        else:
+            return np.array([], dtype=int)
+        return np.unique(np.asarray(tags, dtype=int)) - 1
+
+    entries = []
+    for name in bc.pressure_zero:
+        entries.append((face_nodes(name), 0.0 + 0.0j))
+    for entry in bc.pressure_constant:
+        for name in entry.selection:
+            entries.append((face_nodes(name), complex(entry.value)))
+    for entry in bc.point_pressure:
+        entries.append((np.array([int(entry.node)], dtype=int),
+                        complex(entry.value)))
+
+    held = {}
+    for nodes0, value in entries:
+        for node in np.asarray(nodes0, dtype=int).tolist():
+            held[node] = value          # the last one to name it wins
+
+    if not held:
+        return np.array([], dtype=int), np.array([], dtype=complex)
+    nodes0 = np.array(sorted(held), dtype=int)
+    return nodes0, np.array([held[n] for n in nodes0], dtype=complex)
