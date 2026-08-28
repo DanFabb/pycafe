@@ -297,16 +297,16 @@ def test_cad_file_tags_the_roles_it_is_given(step_box, tmp_path):
 
 
 VIBRO_STEP = pathlib.Path(__file__).resolve().parent.parent / "Library" \
-    / "Vibro_ac1.step"
+    / "WIP" / "Vibro_ac1.step"
 
 
 @pytest.mark.skipif(not VIBRO_STEP.exists(),
-                    reason="Library/Vibro_ac1.step is not in the checkout")
+                    reason="Library/WIP/Vibro_ac1.step is not in the checkout")
 def test_the_solid_with_no_role_is_not_meshed(tmp_path):
     """
     A body pyCAFE models by its surface must not be meshed inside.
 
-    ``Library/Vibro_ac1.step`` is the shape of a STEP assembly: a sphere of
+    ``Library/WIP/Vibro_ac1.step`` is the shape of a STEP assembly: a sphere of
     fluid with a cylinder cut out of it, and the cylinder itself, each
     solid carrying its own copy of the surface where they touch. Only
     the sphere is declared here, so the cylinder has no role at all:

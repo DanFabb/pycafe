@@ -28,8 +28,8 @@ from pycafe.create_geom.ask import (
 )
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-STEP = ROOT / "Library" / "Tubo_1m_1m.stp"
-BDF = ROOT / "Library" / "demo_cavity.bdf"
+STEP = ROOT / "Library" / "WIP" / "Tubo_1m_1m.stp"
+BDF = ROOT / "Library" / "WIP" / "demo_cavity.bdf"
 MSH = ROOT / "Library" / "box_cavity.msh"
 
 
