@@ -3,6 +3,7 @@ __version__ = "1.0.0"
 # Names re-exported from their module on first use, so that importing
 # pycafe does not pull in gmsh, scipy and the rest.
 _LAZY = {
+    # what a model is made of
     "Library": "pycafe.core.model_spec",
     "CadFile": "pycafe.core.model_spec",
     "NastranFile": "pycafe.core.model_spec",
@@ -13,6 +14,70 @@ _LAZY = {
     "WATER": "pycafe.core.model_spec",
     "aluminium": "pycafe.core.model_spec",
     "steel": "pycafe.core.model_spec",
+    "describe_domains": "pycafe.core.model_spec",
+    # asking the user what a script cannot know
+    "ask_for_acoustic_bc": "pycafe.create_geom.ask",
+    "ACOUSTIC_BOUNDARY_CONDITIONS": "pycafe.create_geom.ask",
+    "ACOUSTIC_POINT_SOURCES": "pycafe.create_geom.ask",
+    "ask_for_point_source": "pycafe.create_geom.ask",
+    "ask_for_choice": "pycafe.create_geom.ask",
+    "ask_for_many": "pycafe.create_geom.ask",
+    "ask_for_number": "pycafe.create_geom.ask",
+    "ask_for_point": "pycafe.create_geom.ask",
+    "ask_for_points": "pycafe.create_geom.ask",
+    "ask_for_structure": "pycafe.create_geom.ask",
+    # looking at the mesh
+    "plot_mesh_3d": "pycafe.create_geom.preview",
+    "open_in_gmsh": "pycafe.create_geom.visualize_mesh",
+    "describe_conventions": "pycafe.create_geom.conventions",
+    "GmshModel": "pycafe.create_geom.gmsh_workflow",
+    "describe_mesh": "pycafe.create_geom.validation",
+    "frequency_limits": "pycafe.create_geom.validation",
+    # boundary conditions
+    "build_impedance_operator": "pycafe.boundary_condition.acoustic_bc",
+    "build_radiation_operator": "pycafe.boundary_condition.acoustic_bc",
+    "build_velocity_operator": "pycafe.boundary_condition.acoustic_bc",
+    "build_source_operator": "pycafe.boundary_condition.acoustic_bc",
+    "build_acoustic_load": "pycafe.boundary_condition.acoustic_bc",
+    "prescribed_pressure": "pycafe.boundary_condition.acoustic_bc",
+    # solvers
+    "solve_modal_acoustic_reduced": "pycafe.solver.solver_modale",
+    "acoustic_modal_system": "pycafe.solver.solver_modale",
+    "solve_acoustic_frequency_sweep": "pycafe.solver.solver_helmholtz_1",
+    "build_coupled_blocks": "pycafe.solver.solver_vibroacoustic",
+    "coupled_blocks_from_bc": "pycafe.solver.solver_vibroacoustic",
+    "structural_point_load": "pycafe.solver.solver_vibroacoustic",
+    "expand_pressure": "pycafe.solver.solver_vibroacoustic",
+    "structural_displacement_field": "pycafe.solver.solver_vibroacoustic",
+    "build_cms_basis": "pycafe.solver.solver_vibroacoustic_modal",
+    "build_coupled_modal_basis": "pycafe.solver.solver_vibroacoustic_modal",
+    "project_coupled_system": "pycafe.solver.solver_vibroacoustic_modal",
+    "solve_coupled_modal_frequency_sweep": (
+        "pycafe.solver.solver_vibroacoustic_modal"),
+    "reduced_model_error": "pycafe.solver.solver_vibroacoustic_modal",
+    # reading the answer
+    "Panel": "pycafe.post_processing.panel",
+    "describe_panel": "pycafe.post_processing.panel",
+    "panel_displacement": "pycafe.post_processing.panel",
+    "plot_panel_mode": "pycafe.post_processing.panel",
+    "find_response_peaks": "pycafe.post_processing.frf",
+    "missing_from_response": "pycafe.post_processing.frf",
+    "plot_mac_matrix": "pycafe.post_processing.mac",
+    "plot_frf": "pycafe.post_processing.plots",
+    "plot_modes": "pycafe.post_processing.plots",
+    "plot_mode_grid": "pycafe.post_processing.plots",
+    "plot_field": "pycafe.post_processing.plots",
+    "plot_matrix": "pycafe.post_processing.plots",
+    "plot_shares": "pycafe.post_processing.plots",
+    "AMPLITUDE_CMAP": "pycafe.post_processing.plots",
+    "SIGNED_CMAP": "pycafe.post_processing.plots",
+    # the closed forms a model is checked against
+    "rectangular_cavity_modes": "pycafe.analytical",
+    "cavity_mode_shape": "pycafe.analytical",
+    "identify_cavity_modes": "pycafe.analytical",
+    "mac": "pycafe.analytical",
+    "clamped_plate_modes": "pycafe.analytical",
+    "warburton_cccc": "pycafe.analytical",
 }
 
 
@@ -248,3 +313,12 @@ def solve_vibroacoustic_frequency_sweep(*args, **kwargs):
     )
 
     return _sweep(*args, **kwargs)
+
+
+# One import is the whole API: ``from pycafe import *`` brings in the
+# names above and the wrappers defined here, each module still loaded
+# only when the name it holds is first used.
+__all__ = sorted(set(_LAZY) | {
+    name for name, value in list(globals().items())
+    if callable(value) and not name.startswith("_")
+})

@@ -38,7 +38,20 @@ frequency that sizes the mesh — see
 naming contract at any time.
 """
 
-from .ask import FILE_KINDS, ask_for_file, ask_for_geometry
+from .ask import (
+    ACOUSTIC_BOUNDARY_CONDITIONS,
+    ACOUSTIC_POINT_SOURCES,
+    FILE_KINDS,
+    ask_for_acoustic_bc,
+    ask_for_choice,
+    ask_for_many,
+    ask_for_file,
+    ask_for_geometry,
+    ask_for_number,
+    ask_for_point,
+    ask_for_points,
+    ask_for_structure,
+)
 from .conventions import (
     CANONICAL,
     REQUIRED_ROLES,
@@ -85,12 +98,18 @@ from .library import (
     duct_with_flush_plate,
     plate,
 )
-from .preview import plot_geometry
-from .validation import MeshReport, describe_mesh, validate_mesh
+from .preview import plot_geometry, plot_mesh_3d
+from .validation import (
+    MeshReport,
+    describe_mesh,
+    frequency_limits,
+    validate_mesh,
+)
 from .visualize_mesh import (
     NodeIndex,
     load_mesh_and_elements,
     load_mesh_with_groups,
+    open_in_gmsh,
     plot_2d_mesh,
 )
 
@@ -102,6 +121,7 @@ __all__ = [
     "GmshModel",
     # preview
     "plot_geometry",
+    "plot_mesh_3d",
     # library
     "GEOMETRIES", "build",
     "box_cavity", "box_with_plate", "duct_2d", "duct_with_flush_plate",
@@ -112,13 +132,21 @@ __all__ = [
     "on_plane", "in_box", "by_tag", "largest", "everything", "rest",
     "list_groups", "retag_mesh",
     # asking the user where a file is
-    "FILE_KINDS", "ask_for_file", "ask_for_geometry",
+    "ACOUSTIC_BOUNDARY_CONDITIONS", "ACOUSTIC_POINT_SOURCES",
+    "FILE_KINDS", "ask_for_acoustic_bc", "ask_for_choice",
+    "ask_for_many",
+    "ask_for_point_source",
+    "ask_for_file", "ask_for_geometry",
+    "ask_for_number",
+    "ask_for_point",
+    "ask_for_points",
+    "ask_for_structure",
     # Nastran bulk data
     "BdfDeck", "NastranProperty", "NastranMaterial", "SpcSet",
     "read_bdf", "inspect_bdf", "bdf_to_mesh", "free_faces", "tag_faces",
     # validation
-    "MeshReport", "validate_mesh", "describe_mesh",
+    "MeshReport", "validate_mesh", "describe_mesh", "frequency_limits",
     # loading
     "NodeIndex", "load_mesh_with_groups", "load_mesh_and_elements",
-    "plot_2d_mesh",
+    "open_in_gmsh", "plot_2d_mesh",
 ]
