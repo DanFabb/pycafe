@@ -81,3 +81,45 @@ def solve_modal_acoustic_reduced(
     freqs = np.sqrt(eigvals) / (2.0 * np.pi)
 
     return freqs, eigvecs
+
+
+def acoustic_modal_system(system):
+    """
+    The homogeneous acoustic system: every prescribed pressure at zero.
+
+    A mode is a free vibration, so a boundary held at 3 Pa and one held
+    at 0 Pa are the same boundary here: what the mode sees is that the
+    pressure cannot move there. The forced system keeps those DOFs (the
+    sweep partitions them out with their values); the modal one must not,
+    or the frequencies come back as if the wall were hard.
+
+    Parameters
+    ----------
+    system : dict
+        Assembled acoustic system, ``model["system"]``.
+
+    Returns
+    -------
+    K, M : sparse matrices
+        Reduced to the DOFs that are actually free.
+    nodes0 : ndarray of int
+        The mesh nodes those DOFs belong to, 0-based, to scatter a mode
+        shape back onto the mesh.
+
+    Examples
+    --------
+    >>> K, M, nodes0 = acoustic_modal_system(model["system"])   # doctest: +SKIP
+    >>> freqs, shapes = solve_modal_acoustic_reduced(K, M)      # doctest: +SKIP
+    """
+    import numpy as np
+
+    K, M = system["K_red"], system["M_red"]
+    idx_free = np.asarray(system["idx_free"], dtype=int)
+
+    held = np.asarray(system.get("pressure_nodes_red",
+                                 np.array([], dtype=int)), dtype=int)
+    if held.size == 0:
+        return K, M, idx_free
+
+    keep = np.setdiff1d(np.arange(idx_free.size), held)
+    return (K[np.ix_(keep, keep)], M[np.ix_(keep, keep)], idx_free[keep])

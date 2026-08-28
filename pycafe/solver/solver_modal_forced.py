@@ -7,7 +7,7 @@
 #     (K + j omega C - omega^2 M) p = F(omega)
 #
 # at every frequency (direct method), the response is expanded on the
-# acoustic modes of the rigid, undamped cavity:
+# acoustic modes of the hard-walled, undamped cavity:
 #
 #     p(omega) ~= Phi phi(omega),        m_a << n_a
 #
@@ -40,7 +40,7 @@ def build_modal_basis(
     Compute a mass-normalized modal basis of the acoustic system.
 
     Solves the generalized eigenproblem ``K Phi = omega^2 M Phi`` of
-    the rigid, undamped cavity and normalizes the modes so that
+    the hard-walled, undamped cavity and normalizes the modes so that
     ``Phi^T M Phi = I`` (hence ``Phi^T K Phi = diag(omega_m^2)``).
 
     Parameters
@@ -53,7 +53,7 @@ def build_modal_basis(
         highest analysis frequency (f_m < 2 f_max).
     include_rigid : bool, optional
         Keep the constant-pressure mode at ``omega = 0`` present in a
-        fully rigid cavity. It carries the quasi-static
+        fully hard-walled cavity. It carries the quasi-static
         (compressibility) response and must stay in a forced-response
         basis; drop it only when reproducing a free-vibration mode
         count. Default True.
@@ -93,7 +93,7 @@ def build_modal_basis(
     else:
         k = min(num_modes + 2, n - 1)
         # sigma < 0: the shifted matrix K - sigma*M stays definite even
-        # when K is singular (rigid cavity), unlike sigma = 0.
+        # when K is singular (hard-walled cavity), unlike sigma = 0.
         eigvals, eigvecs = eigsh(K, k=k, M=M, which="LM", sigma=-1.0)
 
     eigvals = np.real(eigvals)
@@ -185,7 +185,7 @@ def solve_modal_frequency_sweep(
     """
     Modal frequency sweep of the forced acoustic response.
 
-    Projects the system on ``num_modes`` rigid-cavity modes and solves
+    Projects the system on ``num_modes`` hard-walled cavity modes and solves
     the small modal system at each frequency:
 
     .. math::
@@ -218,7 +218,7 @@ def solve_modal_frequency_sweep(
     modal_zeta : float or array-like, optional
         Modal damping ratio(s), scalar or per mode.
     include_rigid : bool, optional
-        Keep the constant-pressure mode of a rigid cavity in the
+        Keep the constant-pressure mode of a hard-walled cavity in the
         basis. Default True.
     basis : tuple (omegas, Phi), optional
         Reuse a basis from :func:`build_modal_basis` (e.g. across load

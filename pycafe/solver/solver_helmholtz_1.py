@@ -470,3 +470,72 @@ def solve_helmholtz_frequency_sweep(
         )
 
     return P_red
+
+
+def solve_acoustic_frequency_sweep(system, frequencies, *, nodes, rho,
+                                   elements=None, boundaries=None,
+                                   groups=None, expand=True):
+    """
+    Sweep an assembled acoustic model, and hand back the nodal pressure.
+
+    The wiring between
+    :func:`~pycafe.core.prepare_acoustic_system.prepare_acoustic_system`
+    (or :func:`~pycafe.core.model_spec.build_model`, which calls it) and
+    :func:`solve_helmholtz_frequency_sweep`: every operator the system
+    carries is passed on, so a liner, a piston, a monopole, a perfectly
+    matched layer and a radiating sphere all reach the solver without
+    the caller naming them one by one.
+
+    Parameters
+    ----------
+    system : dict
+        The assembled acoustic system, ``model["system"]``.
+    frequencies : array-like (N_freq,)
+        The sweep [Hz].
+    nodes : ndarray (N, 3)
+        Node coordinates.
+    rho : float
+        Fluid density [kg/m3].
+    elements, boundaries, groups : optional
+        The rest of the mesh, needed to resolve a boundary the velocity
+        load is applied on.
+    expand : bool, optional
+        Return the pressure on **every** node, zero where a DOF was
+        eliminated by a ``p = 0`` boundary. With ``False`` the reduced
+        solution comes back as it is.
+
+    Returns
+    -------
+    ndarray (N, N_freq) or (N_red, N_freq), complex
+
+    See Also
+    --------
+    solve_helmholtz_frequency_sweep : The solver itself, argument by argument.
+    pycafe.solver.solver_vibroacoustic.solve_vibroacoustic_frequency_sweep :
+        The coupled counterpart.
+    """
+    frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+
+    P_red = solve_helmholtz_frequency_sweep(
+        system["K_red"], system["M_red"], system["C_red"],
+        frequencies,
+        system["pressure_nodes_red"], system["pressure_values"],
+        nodes=nodes,
+        idx_free=system["idx_free"],
+        rho=rho,
+        boundaries=boundaries,
+        elements=elements,
+        groups=groups,
+        boundary_dim=system.get("boundary_dim"),
+        velocity_operator=system.get("velocity_red_op"),
+        impedance_operator=system.get("C_red_op"),
+        source_operator=system.get("source_red_op"),
+        pml_operator=system.get("pml_red_op"),
+        radiation_operator=system.get("radiation_red_op"),
+    )
+    if not expand:
+        return P_red
+
+    p = np.zeros((np.asarray(nodes).shape[0], frequencies.size), dtype=complex)
+    p[system["idx_free"], :] = P_red
+    return p

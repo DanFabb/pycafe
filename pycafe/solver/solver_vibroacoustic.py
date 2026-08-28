@@ -198,6 +198,8 @@ def solve_vibroacoustic_frequency_sweep(
     *,
     F_s=None,
     F_a=None,
+    pressure_nodes0=None,
+    pressure_values=None,
     pressure_zero_nodes0=None,
     C_a=None,
     eta_s=0.0,
@@ -222,6 +224,15 @@ def solve_vibroacoustic_frequency_sweep(
         ``(n_s,)``, applied at every frequency, or ``(n_s, N_freq)``.
     F_a : ndarray, optional
         Acoustic source on the retained fluid nodes, same shapes.
+    pressure_nodes0 : array-like of int, optional
+        Fluid nodes held at a **non-zero** pressure, 0-based. They stay
+        in the system and are partitioned out at every frequency, the
+        way :func:`~pycafe.solver.solver_helmholtz_1.solve_helmholtz_single_frequency`
+        does it for the uncoupled problem. Nodes held at zero belong in
+        ``pressure_zero_nodes0`` instead, where they are eliminated once
+        and for all.
+    pressure_values : array-like of complex, optional
+        What each of those nodes is held at [Pa].
     pressure_zero_nodes0, C_a, eta_s, radiation_operator : optional
         Passed to :func:`build_coupled_blocks`. An incident field
         declared on the radiation boundary is added to the acoustic
@@ -258,6 +269,11 @@ def solve_vibroacoustic_frequency_sweep(
     f_s = _as_sweep(F_s, n_s, n_f, "F_s")
     f_a = _as_sweep(F_a, n_a, n_f, "F_a")
 
+    # A prescribed pressure is a constraint, not a load: those unknowns
+    # are known, and their columns move to the right-hand side.
+    known, held = _prescribed_rows(blocks, pressure_nodes0, pressure_values)
+    unknown = np.setdiff1d(np.arange(n_s + n_a), known)
+
     x = np.zeros((n_s + n_a, n_f), dtype=complex)
     for i, freq in enumerate(frequencies):
         omega = 2.0 * np.pi * freq
@@ -266,7 +282,13 @@ def solve_vibroacoustic_frequency_sweep(
         if blocks.get("radiation") is not None:
             rhs_a = rhs_a + blocks["radiation"].load(omega)
         rhs = np.concatenate([f_s[:, i], rhs_a])
-        x[:, i] = spsolve(A.tocsc(), rhs)
+        if known.size:
+            A = A.tocsc()
+            rhs_eff = rhs[unknown] - A[unknown][:, known] @ held
+            x[unknown, i] = spsolve(A[unknown][:, unknown].tocsc(), rhs_eff)
+            x[known, i] = held
+        else:
+            x[:, i] = spsolve(A.tocsc(), rhs)
         if verbose:
             print(f"  [{i + 1}/{n_f}] f = {freq:8.2f} Hz  "
                   f"|w|max = {np.abs(x[:n_s, i]).max():.3e}  "
@@ -280,6 +302,37 @@ def solve_vibroacoustic_frequency_sweep(
         "frequencies": frequencies,
         "blocks": blocks,
     }
+
+
+def _prescribed_rows(blocks, pressure_nodes0, pressure_values):
+    """
+    Where the held pressures sit in the coupled unknown vector.
+
+    The acoustic block comes after the structural one, and it holds only
+    the fluid nodes ``blocks["idx_a"]``: a node eliminated by a
+    ``p = 0`` condition is no longer there, and one named twice is kept
+    once.
+    """
+    if pressure_nodes0 is None or len(pressure_nodes0) == 0:
+        return np.array([], dtype=int), np.array([], dtype=complex)
+
+    nodes0 = np.asarray(pressure_nodes0, dtype=int)
+    values = np.asarray(pressure_values, dtype=complex)
+    if values.size != nodes0.size:
+        raise ValueError(
+            f"pressure_values has size {values.size}, expected "
+            f"{nodes0.size}, one per node of pressure_nodes0."
+        )
+
+    idx_a = np.asarray(blocks["idx_a"], dtype=int)
+    # A lookup rather than a searchsorted: nothing promises idx_a is
+    # sorted, and a node the blocks no longer hold has to drop out.
+    lookup = np.full(int(max(idx_a.max(initial=-1), nodes0.max())) + 2, -1,
+                     dtype=int)
+    lookup[idx_a] = np.arange(idx_a.size)
+    position = lookup[nodes0]
+    inside = position >= 0
+    return (blocks["n_s"] + position[inside]).astype(int), values[inside]
 
 
 def _as_sweep(F, n, n_f, name):
@@ -470,3 +523,126 @@ def structural_displacement_field(w_red, idx_s, num_nodes, dofs_per_node=6):
     w_full = np.zeros(num_nodes * dofs_per_node, dtype=complex)
     w_full[np.asarray(idx_s, dtype=int)] = np.asarray(w_red)
     return w_full.reshape(num_nodes, dofs_per_node)
+
+
+def coupled_blocks_from_bc(system, bc, *, nodes, groups, boundaries=None,
+                           elements=None, eta_s=0.0, radiation_operator=None):
+    """
+    Turn an :class:`AcousticBC` into the blocks of a coupled model.
+
+    The three acoustic conditions a coupled model takes reach it by three
+    different routes, and this is the one call that walks all three: an
+    impedance becomes ``Ca``, a face at ``p = 0`` leaves the unknowns,
+    and a face or a node held at a value stays in and is handed back for
+    the sweep to partition.
+
+    Parameters
+    ----------
+    system : dict
+        Prepared vibroacoustic system.
+    bc : AcousticBC
+        What every face was told to do.
+    nodes : ndarray (N, 3)
+    groups : dict
+        Physical groups of the mesh.
+    boundaries : dict, optional
+        Boundary node tags, used to resolve a face by name.
+    elements : dict, optional
+        Connectivity, needed to integrate an impedance over its faces.
+    eta_s : float, optional
+        Structural loss factor.
+    radiation_operator : SphericalRadiationOperator, optional
+
+    Returns
+    -------
+    dict
+        ``blocks`` for the solver, ``pressure_nodes0`` and
+        ``pressure_values`` for its partition (the non-zero ones only),
+        and ``pinned``, the nodes that left the system at ``p = 0``.
+
+    Examples
+    --------
+    >>> ready = coupled_blocks_from_bc(system, bc, nodes=nodes,   # doctest: +SKIP
+    ...                                groups=groups, boundaries=boundaries,
+    ...                                elements=elements, eta_s=0.02)
+    """
+    from pycafe.boundary_condition.acoustic_bc import (
+        build_impedance_operator,
+        prescribed_pressure,
+    )
+
+    rho0 = float(system["props"]["rho0"])
+    c0 = float(system["props"]["c0"])
+
+    C_a = None
+    if bc.impedance:
+        C_a = build_impedance_operator(
+            bc, nodes=nodes, rho=rho0, c0=c0, boundaries=boundaries,
+            groups=groups, elements=elements, boundary_dim=2,
+        ).at(0.0)
+
+    held, values = prescribed_pressure(bc, boundaries=boundaries,
+                                       groups=groups)
+    at_zero = values == 0
+    pinned = held[at_zero]
+
+    blocks = build_coupled_blocks(
+        system, C_a=C_a, eta_s=eta_s, pressure_zero_nodes0=pinned,
+        radiation_operator=radiation_operator,
+    )
+    return {
+        "blocks": blocks,
+        "pressure_nodes0": held[~at_zero],
+        "pressure_values": values[~at_zero],
+        "pinned": pinned,
+        "held": held,
+    }
+
+
+def structural_point_load(system, node0, magnitude, component):
+    """
+    A point load on the structure, as the reduced solver wants it.
+
+    The structural DOFs are six per node and only the free ones are
+    kept, so "1 N on that node along z" is a search in ``idx_free``
+    before it is a vector.
+
+    Parameters
+    ----------
+    system : dict
+        Prepared vibroacoustic system.
+    node0 : int
+        0-based node the load is applied at.
+    magnitude : float
+        Force [N] (or moment [N m] on a rotational component).
+    component : int
+        Which of the six DOFs: 0, 1, 2 are the translations along x, y
+        and z, 3, 4, 5 the rotations. For a flat panel pushed normally
+        this is ``panel.normal``.
+
+    Returns
+    -------
+    F_s : ndarray (n_s,)
+        The load on the free structural DOFs.
+    dof : int
+        Where it landed, to read the response back at the drive point.
+
+    Raises
+    ------
+    ValueError
+        If that node and component is not a free DOF, which is what a
+        clamped edge looks like from here.
+    """
+    idx_s = np.asarray(system["structural"]["idx_free"], dtype=int)
+    where = np.where((idx_s // 6 == int(node0))
+                     & (idx_s % 6 == int(component)))[0]
+    if where.size == 0:
+        raise ValueError(
+            f"node {node0} has no free DOF {component}: it is held there, so "
+            "a load on it would do nothing. Pick a node inside the structure "
+            "rather than on its supported edge."
+        )
+    dof = int(where[0])
+    F_s = np.zeros(idx_s.size)
+    F_s[dof] = float(magnitude)
+    return F_s, dof

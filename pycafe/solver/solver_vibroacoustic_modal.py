@@ -75,8 +75,8 @@ solved separately, both **symmetric**,
    \qquad
    \mathbf K_a \mathbf \Phi_{au} = \omega_{a}^2 \mathbf M_a \mathbf \Phi_{au} ,
 
-— the dry structure (no pressure load on the interface) and the cavity
-with **rigid walls** — and the two bases are stacked block-diagonally,
+— the structure in vacuo (no pressure load on the interface) and the cavity
+with **hard walls** — and the two bases are stacked block-diagonally,
 
 .. math::
 
@@ -110,15 +110,15 @@ blocks, not independence.
 The trade. Building the basis is much cheaper — two symmetric
 eigenproblems instead of one large unsymmetric one — but the basis is
 less efficient, so more vectors are needed for the same accuracy. The
-reason is the rigid-wall assumption: every acoustic mode has
+reason is the hard-wall assumption: every acoustic mode has
 :math:`u_{f,n} = 0` on the interface, while the true condition there is
 :math:`u_{f,n} = u_{s,n}`. Near the flexible wall the field a vibrating
 plate produces is largely evanescent, with strong normal gradients, and
-global rigid-wall modes reconstruct it slowly — so the pressure *near
+global hard-wall modes reconstruct it slowly — so the pressure *near
 the plate* is what converges last.
 
 Refinements exist for that: acoustic modes computed with an impedance
-condition on the interface instead of a rigid wall (efficient, but
+condition on the interface instead of a hard wall (efficient, but
 choosing ``Z`` is an open question), or fixed-interface modes
 (``p = 0`` on the interface) plus one constraint mode per interface DOF
 — exact in principle, but ``N_Gamma`` extra vectors on a finely meshed
@@ -351,7 +351,7 @@ def build_cms_basis(
     include_rigid=True,
 ):
     r"""
-    Component Mode Synthesis basis: dry structure + rigid-wall cavity (method 2).
+    Component Mode Synthesis basis: structure in vacuo + hard-wall cavity (method 2).
 
     Solves the two **symmetric** component eigenproblems separately and
     stacks their mass-normalized modes block-diagonally. The coupling is
@@ -364,10 +364,10 @@ def build_cms_basis(
         Prepared vibroacoustic system. Not needed when ``blocks`` is
         given.
     num_structural : int, optional
-        Number of dry structural modes ``m_s``.
+        Number of in vacuo structural modes ``m_s``.
     num_acoustic : int, optional
-        Number of rigid-wall acoustic modes ``m_a``. Expect to need more
-        of these than of the structural ones: rigid-wall modes represent
+        Number of hard-wall acoustic modes ``m_a``. Expect to need more
+        of these than of the structural ones: hard-wall modes represent
         the field near the flexible wall poorly.
     blocks, pressure_zero_nodes0, C_a : optional
         As in :func:`build_coupled_modal_basis`.
@@ -618,3 +618,56 @@ def solve_coupled_modal_frequency_sweep(
     if return_modal:
         result["participations"] = phi
     return result
+
+
+def reduced_model_error(basis, frequencies, reference, *, F_s=None, F_a=None,
+                        eta_s=0.0, dof=None):
+    """
+    Solve a sweep on a reduced basis and measure it against the direct one.
+
+    Parameters
+    ----------
+    basis : dict
+        From :func:`build_coupled_modal_basis` or
+        :func:`build_cms_basis`.
+    frequencies : array-like (N_freq,)
+        The frequencies of the reference sweep [Hz].
+    reference : dict
+        The direct solution to compare with, as returned by
+        :func:`~pycafe.solver.solver_vibroacoustic.solve_vibroacoustic_frequency_sweep`
+        — its ``"w"`` and ``"p"``.
+    F_s, F_a : ndarray, optional
+        The same loads the reference was solved with.
+    eta_s : float, optional
+        The same structural loss factor.
+    dof : int, optional
+        A reduced structural DOF to report the error at, typically the
+        driven one, where truncation shows worst.
+
+    Returns
+    -------
+    dict
+        ``err_w``, ``err_p`` (relative 2-norms over the whole sweep),
+        ``err_at_dof`` (median relative error there, or None),
+        ``time`` [s] of the reduced sweep, and ``result``.
+    """
+    import time as _time
+
+    started = _time.time()
+    result = solve_coupled_modal_frequency_sweep(
+        basis, frequencies, F_s=F_s, F_a=F_a, eta_s=eta_s,
+    )
+    elapsed = _time.time() - started
+
+    err_w = (np.linalg.norm(result["w"] - reference["w"])
+             / np.linalg.norm(reference["w"]))
+    err_p = (np.linalg.norm(result["p"] - reference["p"])
+             / np.linalg.norm(reference["p"]))
+    at_dof = None
+    if dof is not None:
+        at_dof = float(np.median(
+            np.abs(result["w"][dof] - reference["w"][dof])
+            / np.abs(reference["w"][dof])
+        ))
+    return {"err_w": float(err_w), "err_p": float(err_p),
+            "err_at_dof": at_dof, "time": elapsed, "result": result}
