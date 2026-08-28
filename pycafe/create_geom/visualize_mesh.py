@@ -327,3 +327,60 @@ def print_available_boundaries(boundaries):
     print("-------------------------------------")
     for name, nodes in boundaries.items():
         print(f"- {name:20s} | {len(nodes)} nodes")
+
+def open_in_gmsh(path, *, mode="surfaces"):
+    """
+    Open a mesh in gmsh's own window, where it can be turned by hand.
+
+    Matplotlib draws a 3D figure onto a flat image: inside a notebook
+    with the default backend the picture cannot be rotated, only
+    redrawn from another angle. gmsh has a real viewer, and the mesh is
+    already a gmsh file, so this hands it over.
+
+    The call **blocks** until the window is closed — a Jupyter cell
+    running it stays busy meanwhile, which is the price of a window
+    that is not a picture. (The other way round is
+    ``%matplotlib widget``, which makes every matplotlib figure of the
+    notebook rotatable once ``ipympl`` is installed.)
+
+    Parameters
+    ----------
+    path : str or Path
+        The ``.msh`` file.
+    mode : {"surfaces", "volumes", "wireframe"}, optional
+        What to show when the window opens. Everything can be changed
+        in the viewer afterwards.
+
+    Raises
+    ------
+    RuntimeError
+        If this build of gmsh has no viewer, or there is no display to
+        open a window on.
+
+    Examples
+    --------
+    >>> open_in_gmsh("Library/box_with_plate.msh")     # doctest: +SKIP
+    """
+    import gmsh
+
+    started = not gmsh.isInitialized()
+    if started:
+        gmsh.initialize()
+    try:
+        gmsh.open(str(path))
+        gmsh.option.setNumber("Mesh.SurfaceEdges", 1)
+        gmsh.option.setNumber("Mesh.SurfaceFaces",
+                              0 if mode == "wireframe" else 1)
+        gmsh.option.setNumber("Mesh.VolumeEdges", 1 if mode == "volumes" else 0)
+        gmsh.option.setNumber("Mesh.VolumeFaces", 1 if mode == "volumes" else 0)
+        try:
+            gmsh.fltk.run()
+        except Exception as why:
+            raise RuntimeError(
+                f"gmsh could not open a window ({why}). Its viewer needs a "
+                "display; over SSH or in a container there is none, and the "
+                "picture drawn by plot_mesh_3d is what there is."
+            ) from None
+    finally:
+        if started:
+            gmsh.finalize()

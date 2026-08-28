@@ -147,6 +147,71 @@ def _element_sizes(nodes, conn0):
     return float(h.min()), float(h.mean()), float(h.max())
 
 
+# The dispersion of the trilinear acoustic element goes roughly as
+# 164 / n_lambda^2: thirteen elements per wavelength buy 1%, and six are
+# the bare minimum below which the answer is dispersion, not physics.
+ELEMENTS_PER_WAVELENGTH_1PCT = 13.0
+ELEMENTS_PER_WAVELENGTH_FLOOR = 6.0
+
+
+def frequency_limits(mesh, *, c0=343.0):
+    """
+    Up to which frequency a mesh that already exists can be used.
+
+    A mesh pyCAFE builds is sized by ``f_max``; a mesh the user brings
+    has its size already, and the frequency follows from it instead.
+    This is the question to ask **before** ``f_max``, so that a band the
+    elements cannot carry is caught at the question rather than at the
+    assembly.
+
+    Parameters
+    ----------
+    mesh : str, Path or tuple
+        A ``.msh`` path, or the tuple returned by
+        :func:`~pycafe.create_geom.visualize_mesh.load_mesh_with_groups`.
+    c0 : float, optional
+        Speed of sound [m/s].
+
+    Returns
+    -------
+    dict or None
+        ``h_max`` [m], the largest fluid element; ``f_1pct`` [Hz], where
+        thirteen elements per wavelength are left, so about 1% frequency
+        error; and ``f_floor`` [Hz], where six are left, the point past
+        which :func:`validate_mesh` refuses the mesh. ``None`` when the
+        mesh holds no fluid domain to measure.
+
+    Examples
+    --------
+    >>> limits = frequency_limits("box_cavity.msh")     # doctest: +SKIP
+    >>> round(limits["f_1pct"])                         # doctest: +SKIP
+    792
+    """
+    from ..build_matrices.domains import identify_domains
+
+    _, nodes, _, _, groups = _load(mesh)
+    if "fluid" not in {role_of(g) for g in groups}:
+        return None
+    try:
+        conn0 = identify_domains(groups)["fluid"]["conn0"]
+    except (RuntimeError, KeyError):
+        return None
+
+    sizes = _element_sizes(nodes, conn0)
+    if sizes is None:
+        return None
+    return _limits_from_size(sizes[2], c0)
+
+
+def _limits_from_size(h_max, c0):
+    """The two frequencies that follow from the largest element."""
+    return {
+        "h_max": float(h_max),
+        "f_1pct": float(c0 / (ELEMENTS_PER_WAVELENGTH_1PCT * h_max)),
+        "f_floor": float(c0 / (ELEMENTS_PER_WAVELENGTH_FLOOR * h_max)),
+    }
+
+
 def _face_key_set(conn0):
     """Sorted-node keys of a set of elements, to compare surfaces."""
     return {tuple(sorted(row.tolist())) for row in np.asarray(conn0, dtype=int)}
@@ -349,10 +414,11 @@ def validate_mesh(mesh, *, analysis="auto", c0=343.0, f_max=None):
                 f"{h_mean * 1e3:.1f} / {h_max * 1e3:.1f} mm "
                 "(min / mean / max)"
             )
-            f_1pct = c0 / (13.0 * h_max)
+            limits = _limits_from_size(h_max, c0)
             report.notes.append(
-                f"good to ~1% up to {f_1pct:.0f} Hz "
-                f"(13 elements per wavelength at c0 = {c0:.0f} m/s)"
+                f"good to ~1% up to {limits['f_1pct']:.0f} Hz "
+                f"({ELEMENTS_PER_WAVELENGTH_1PCT:.0f} elements per wavelength "
+                f"at c0 = {c0:.0f} m/s)"
             )
             if f_max is not None:
                 n_lambda = c0 / (float(f_max) * h_max)
@@ -361,13 +427,15 @@ def validate_mesh(mesh, *, analysis="auto", c0=343.0, f_max=None):
                     f"wavelength, dispersion error ~"
                     f"{164.0 / n_lambda ** 2:.2f}%"
                 )
-                if n_lambda < 6.0:
+                if n_lambda < ELEMENTS_PER_WAVELENGTH_FLOOR:
                     report.errors.append(
                         f"only {n_lambda:.1f} elements per wavelength at "
-                        f"{f_max:.0f} Hz: below the practical minimum of 6, "
-                        "the result is dispersion, not physics."
+                        f"{f_max:.0f} Hz: below the practical minimum of "
+                        f"{ELEMENTS_PER_WAVELENGTH_FLOOR:.0f}, the result is "
+                        "dispersion, not physics. This mesh stops at "
+                        f"{limits['f_floor']:.0f} Hz."
                     )
-                elif n_lambda < 13.0:
+                elif n_lambda < ELEMENTS_PER_WAVELENGTH_1PCT:
                     report.warnings.append(
                         f"{n_lambda:.1f} elements per wavelength at "
                         f"{f_max:.0f} Hz: expect around "

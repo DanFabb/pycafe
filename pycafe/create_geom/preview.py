@@ -65,6 +65,7 @@ def plot_geometry(
     *,
     title=None,
     show_boundaries=True,
+    style="roles",
     ax=None,
     elev=22,
     azim=-60,
@@ -87,6 +88,12 @@ def plot_geometry(
         Also draw the free-name groups (``inlet``, ``opening``, ...) as
         coloured patches. Default True; ``False`` keeps only fluid,
         structure and layer.
+    style : {"roles", "mesh"}, optional
+        ``"roles"`` fills each group with the colour of the role it
+        plays, which is what a model is checked with. ``"mesh"`` fades
+        the fills and draws every element edge instead, which is what a
+        mesh is looked at with — same picture, different question. See
+        :func:`plot_mesh_3d`.
     ax : matplotlib 3D axes, optional
         Draw into an existing axes instead of making a figure.
     elev, azim : float, optional
@@ -141,17 +148,22 @@ def plot_geometry(
             continue
 
         if role in ROLE_STYLE:
-            style = dict(ROLE_STYLE[role])
+            patch = dict(ROLE_STYLE[role])
         else:
-            style = {"facecolor": next(colour, "#7f8c8d"), "edgecolor": "0.35",
+            patch = {"facecolor": next(colour, "#7f8c8d"), "edgecolor": "0.35",
                      "alpha": 0.22, "linewidth": 0.2}
+        if style == "mesh":
+            # The elements are the subject here: the fill is only there to
+            # tell one group from another, and the edges carry the picture.
+            patch = dict(patch, alpha=0.10 if role != "structure" else 0.35,
+                         edgecolor="0.25", linewidth=0.45)
 
         ax.add_collection3d(Poly3DCollection(
-            [nodes[f] for f in faces], **style
+            [nodes[f] for f in faces], **patch
         ))
         label = f"{name}" + (f"  ({role})" if role else "")
         handles.append(plt.Line2D([0], [0], marker="s", linestyle="",
-                                  markerfacecolor=style["facecolor"],
+                                  markerfacecolor=patch["facecolor"],
                                   markeredgecolor="k", markersize=8,
                                   label=label))
 
@@ -190,3 +202,40 @@ def plot_geometry(
     if show:
         plt.show()
     return ax
+
+
+def plot_mesh_3d(nodes, groups, **kwargs):
+    """
+    Draw the mesh in 3D: every element of every surface, edges and all.
+
+    The same picture as :func:`plot_geometry` and a different question.
+    That one asks *what is this model* — which group plays which role,
+    what colour the panel is. This one asks *what is this mesh* — how
+    many elements there are across the panel, whether the fluid grid
+    lines up with it, where the mesh is fine and where it is not. So the
+    fills fade and the element edges are drawn.
+
+    Only the surfaces are drawn, because the outside of a volume mesh is
+    made of them: the faces of the hexahedra inside would hide each other
+    and cost a great deal to render.
+
+    Parameters
+    ----------
+    nodes : ndarray (N, 3) or (N, 2)
+    groups : dict
+        Physical groups with connectivity, from
+        :func:`~pycafe.create_geom.visualize_mesh.load_mesh_with_groups`.
+    **kwargs
+        Everything :func:`plot_geometry` takes (``title``, ``ax``,
+        ``elev``, ``azim``, ``figsize``, ``show``).
+
+    Returns
+    -------
+    matplotlib axes
+
+    Examples
+    --------
+    >>> plot_mesh_3d(nodes, groups, title="what am I meshing?")  # doctest: +SKIP
+    """
+    kwargs.setdefault("title", "mesh")
+    return plot_geometry(nodes, groups, style="mesh", **kwargs)
