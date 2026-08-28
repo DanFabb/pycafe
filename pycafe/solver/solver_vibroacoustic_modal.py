@@ -163,6 +163,24 @@ from pycafe.solver.solver_vibroacoustic import (
 )
 
 
+def _refuse_frequency_dependent_impedance(blocks):
+    """
+    A liner that changes with frequency has no place in a modal basis.
+
+    The reduction projects one damping matrix onto the modes and reuses
+    it at every frequency, so an admittance that depends on omega would
+    be frozen at whichever value happened to be projected. That is the
+    wrong answer rather than a coarse one, so it raises.
+    """
+    if blocks.get("impedance") is not None:
+        raise ValueError(
+            "These blocks carry a frequency-dependent impedance, which no "
+            "single modal damping matrix can stand for. Solve this model "
+            "with solve_vibroacoustic_frequency_sweep, or state the liner "
+            "as a constant admittance."
+        )
+
+
 def _blocks_for_basis(system, blocks, pressure_zero_nodes0, C_a):
     """Resolve and validate the coupled blocks a basis is built on."""
     if blocks is None:
@@ -171,6 +189,7 @@ def _blocks_for_basis(system, blocks, pressure_zero_nodes0, C_a):
         blocks = build_coupled_blocks(
             system, pressure_zero_nodes0=pressure_zero_nodes0, C_a=C_a,
         )
+    _refuse_frequency_dependent_impedance(blocks)
     if np.issubdtype(blocks["Ks"].dtype, np.complexfloating):
         raise ValueError(
             "The coupled blocks carry a complex stiffness: build the basis "
@@ -497,6 +516,8 @@ def project_coupled_system(basis, *, eta_s=0.0, rayleigh=None, modal_zeta=None):
     Ct = modal_damping_matrix(
         omegas, rayleigh=rayleigh, modal_zeta=modal_zeta,
     ).astype(complex)
+
+    _refuse_frequency_dependent_impedance(blocks)
 
     Ca = blocks["Ca"]
     if sp.issparse(Ca) and Ca.nnz:

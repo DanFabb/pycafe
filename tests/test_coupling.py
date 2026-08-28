@@ -51,7 +51,8 @@ T, RHO_S, E, NU = 0.002, 7800.0, 210e9, 0.3
 
 
 @pytest.fixture(scope="module")
-def mesh(tmp_path_factory):
+def mesh_full(tmp_path_factory):
+    """The box and its plate, everything the loader returns."""
     pytest.importorskip("gmsh")
     repo_root = pathlib.Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root / "coupling_geometry"))
@@ -63,7 +64,12 @@ def mesh(tmp_path_factory):
     )
     from pycafe.create_geom.visualize_mesh import load_mesh_with_groups
 
-    nodes, _, _, groups = load_mesh_with_groups(str(msh))
+    return load_mesh_with_groups(str(msh))
+
+
+@pytest.fixture(scope="module")
+def mesh(mesh_full):
+    nodes, _, _, groups = mesh_full
     return nodes, groups
 
 
@@ -441,6 +447,154 @@ class TestCoupledSweep:
         uncoupled = _system(mesh, build_coupling=False)
         with pytest.raises(RuntimeError, match="system\\['coupling'\\]"):
             build_coupled_blocks(uncoupled)
+
+
+#  AN IMPEDANCE THAT DEPENDS ON FREQUENCY
+def _impedance_operator(system, admittance):
+    """An impedance on the first few fluid nodes, as an operator."""
+    import scipy.sparse as sp
+
+    from pycafe.boundary_condition.acoustic_bc import ImpedanceOperator
+
+    n = system["acoustic"]["K"].shape[0]
+    face = np.asarray(system["acoustic"]["nodes0"], dtype=int)[:6]
+    S = sp.csr_matrix(
+        (np.full(face.size, 0.01), (face, face)), shape=(n, n),
+    )
+    return ImpedanceOperator(n, [(S, admittance)], RHO0)
+
+
+class TestImpedanceOperatorInCoupledRuns:
+
+    def test_constant_admittance_is_folded_into_ca(self, system):
+        op = _impedance_operator(system, lambda omega: 2.0 - 1j)
+        blocks = build_coupled_blocks(system, impedance_operator=op)
+        frozen = build_coupled_blocks(system, C_a=op.at(0.0))
+
+        # Nothing to evaluate later: one matrix says it all.
+        assert blocks["impedance"] is None
+        assert abs(blocks["Ca"] - frozen["Ca"]).max() < 1e-12
+
+    def test_frequency_dependent_admittance_is_carried_not_frozen(
+        self, system
+    ):
+        """
+        The bug this covers: sampling a liner at omega = 0 and reusing
+        that matrix for the whole sweep returns a plausible, wrong FRF.
+        """
+        admittance = lambda omega: 1.0 + 1j * omega / 1e3    # noqa: E731
+        op = _impedance_operator(system, admittance)
+        blocks = build_coupled_blocks(system, impedance_operator=op)
+
+        assert blocks["impedance"] is not None
+        assert blocks["Ca"].nnz == 0        # it is not a matrix
+
+        bare = build_coupled_blocks(system)
+        n_s = blocks["n_s"]
+        for omega in (2 * np.pi * 50.0, 2 * np.pi * 300.0):
+            A = coupled_dynamic_stiffness(blocks, omega)
+            A0 = coupled_dynamic_stiffness(bare, omega)
+            added = (A - A0)[n_s:, n_s:]
+            expected = 1j * omega * blocks["impedance"].at(omega)
+            assert abs(added - expected).max() < 1e-9
+            # And it really does change with frequency.
+            assert abs(added).max() > 0.0
+
+        first = (coupled_dynamic_stiffness(blocks, 2 * np.pi * 50.0)
+                 - coupled_dynamic_stiffness(bare, 2 * np.pi * 50.0))
+        frozen = build_coupled_blocks(system, C_a=op.at(0.0))
+        stale = (coupled_dynamic_stiffness(frozen, 2 * np.pi * 50.0)
+                 - coupled_dynamic_stiffness(bare, 2 * np.pi * 50.0))
+        assert abs(first - stale).max() > 1e-9
+
+    def test_a_liner_changes_the_sweep(self, system):
+        admittance = lambda omega: 1.0 + 1j * omega / 1e3    # noqa: E731
+        op = _impedance_operator(system, admittance)
+        lined = solve_vibroacoustic_frequency_sweep(
+            system, [150.0], F_s=np.ones(build_coupled_blocks(system)["n_s"]),
+            impedance_operator=op, verbose=False,
+        )
+        bare = solve_vibroacoustic_frequency_sweep(
+            system, [150.0], F_s=np.ones(build_coupled_blocks(system)["n_s"]),
+            verbose=False,
+        )
+        assert abs(lined["p"] - bare["p"]).max() > 0.0
+
+    def test_the_bc_route_carries_it_too(self, mesh_full, system):
+        """
+        coupled_blocks_from_bc is where a liner enters a coupled run:
+        it must hand over the operator, not a sample of it.
+        """
+        from pycafe.boundary_condition.acoustic_bc import AcousticBC
+        from pycafe.solver.solver_vibroacoustic import coupled_blocks_from_bc
+
+        nodes, elements, boundaries, groups = mesh_full
+        bc = AcousticBC().add_impedance(
+            "rigid_walls", lambda omega: 1.0 + 1j * omega / 1e3,
+        )
+        ready = coupled_blocks_from_bc(
+            system, bc, nodes=nodes, groups=groups, boundaries=boundaries,
+            elements=elements,
+        )
+        operator = ready["blocks"]["impedance"]
+        assert operator is not None
+        # Two frequencies, two matrices: nothing was frozen on the way in.
+        assert abs(operator.at(100.0) - operator.at(2000.0)).max() > 0.0
+
+    def test_modal_reduction_refuses_it(self, system):
+        from pycafe.solver.solver_vibroacoustic_modal import (
+            build_coupled_modal_basis,
+        )
+
+        op = _impedance_operator(system, lambda omega: 1.0 + 1j * omega / 1e3)
+        blocks = build_coupled_blocks(system, impedance_operator=op)
+        with pytest.raises(ValueError, match="frequency-dependent impedance"):
+            build_coupled_modal_basis(blocks=blocks, num_modes=3)
+
+
+#  A PRESCRIBED PRESSURE THE SYSTEM CANNOT CARRY
+class TestPrescribedPressureIsChecked:
+
+    def test_a_node_outside_the_fluid_raises(self, mesh, system):
+        n = mesh[0].shape[0]
+        blocks = build_coupled_blocks(system)
+        with pytest.raises(ValueError, match="not fluid unknowns"):
+            solve_vibroacoustic_frequency_sweep(
+                system, [100.0], blocks=blocks,
+                pressure_nodes0=[n + 10], pressure_values=[1.0],
+                verbose=False,
+            )
+
+    def test_a_node_already_pinned_at_zero_raises(self, system):
+        pinned = int(np.asarray(system["acoustic"]["nodes0"])[0])
+        blocks = build_coupled_blocks(system, pressure_zero_nodes0=[pinned])
+        with pytest.raises(ValueError, match="left the system at p = 0"):
+            solve_vibroacoustic_frequency_sweep(
+                system, [100.0], blocks=blocks,
+                pressure_nodes0=[pinned], pressure_values=[3.0],
+                verbose=False,
+            )
+
+    def test_the_same_node_held_at_two_values_raises(self, system):
+        node = int(np.asarray(system["acoustic"]["nodes0"])[0])
+        blocks = build_coupled_blocks(system)
+        with pytest.raises(ValueError, match="two different pressures"):
+            solve_vibroacoustic_frequency_sweep(
+                system, [100.0], blocks=blocks,
+                pressure_nodes0=[node, node], pressure_values=[1.0, 2.0],
+                verbose=False,
+            )
+
+    def test_a_valid_constraint_is_enforced(self, system):
+        node = int(np.asarray(system["acoustic"]["nodes0"])[0])
+        blocks = build_coupled_blocks(system)
+        out = solve_vibroacoustic_frequency_sweep(
+            system, [100.0], blocks=blocks,
+            pressure_nodes0=[node, node], pressure_values=[3.0, 3.0],
+            verbose=False,
+        )
+        row = int(np.where(blocks["idx_a"] == node)[0][0])
+        assert abs(out["p"][row, 0] - 3.0) < 1e-9
 
 
 #  BACK TO THE MESH

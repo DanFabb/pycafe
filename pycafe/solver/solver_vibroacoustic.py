@@ -72,6 +72,7 @@ def build_coupled_blocks(
     *,
     pressure_zero_nodes0=None,
     C_a=None,
+    impedance_operator=None,
     eta_s=0.0,
     radiation_operator=None,
 ):
@@ -89,7 +90,17 @@ def build_coupled_blocks(
         acoustic unknowns.
     C_a : sparse matrix, optional
         Acoustic damping (impedance) matrix on the **full** node
-        numbering, e.g. from an anechoic or lined boundary.
+        numbering, e.g. from an anechoic or lined boundary. One matrix,
+        so one frequency: use ``impedance_operator`` for a liner whose
+        admittance depends on frequency.
+    impedance_operator : ImpedanceOperator, optional
+        The impedance boundaries as an operator on the **full** node
+        numbering, from
+        :func:`~pycafe.boundary_condition.acoustic_bc.build_impedance_operator`.
+        A constant admittance is folded into ``Ca`` here, once; a
+        frequency-dependent one is kept as an operator and evaluated at
+        every frequency of the sweep, which is the only way a liner
+        model reaches the coupled solver unfrozen.
     eta_s : float, optional
         Structural loss factor: the stiffness becomes ``Ks (1 + j eta)``.
     radiation_operator : SphericalRadiationOperator, optional
@@ -104,8 +115,9 @@ def build_coupled_blocks(
     blocks : dict
         ``Ks, Ms, Ka, Ma, Ca, Kc`` reduced to the coupled unknowns,
         plus ``idx_s`` (global structural DOF indices), ``idx_a``
-        (0-based fluid node indices), ``n_s``, ``n_a``, ``rho0`` and
-        ``radiation`` (the reduced operator, or None).
+        (0-based fluid node indices), ``n_s``, ``n_a``, ``rho0``,
+        ``radiation`` and ``impedance`` (the reduced operators, or
+        None) and ``pressure_zero_nodes0`` (what left at ``p = 0``).
 
     Raises
     ------
@@ -135,6 +147,19 @@ def build_coupled_blocks(
     Ca = (C_a[np.ix_(idx_a, idx_a)] if C_a is not None
           else sp.csr_matrix((idx_a.size, idx_a.size)))
 
+    # An admittance that does not depend on frequency is one matrix, and
+    # it belongs in Ca where every path already reads it. One that does
+    # depend on frequency is not a matrix at all: freezing it at a single
+    # omega answers a different problem, silently, so the operator is
+    # carried and assembled again at each line of the sweep.
+    impedance = None
+    if impedance_operator is not None and not impedance_operator.is_empty:
+        reduced = impedance_operator.reduce(idx_a)
+        if reduced.is_frequency_dependent:
+            impedance = reduced
+        else:
+            Ca = (Ca.astype(complex) + reduced.at(0.0)).tocsr()
+
     if eta_s:
         Ks = Ks.astype(complex) * (1.0 + 1j * float(eta_s))
 
@@ -153,6 +178,10 @@ def build_coupled_blocks(
         "radiation": (None if radiation_operator is None
                       or radiation_operator.is_empty
                       else radiation_operator.reduce(idx_a)),
+        "impedance": impedance,
+        "pressure_zero_nodes0": (
+            np.array([], dtype=int) if pressure_zero_nodes0 is None
+            else np.unique(np.asarray(pressure_zero_nodes0, dtype=int))),
     }
 
 
@@ -176,6 +205,11 @@ def coupled_dynamic_stiffness(blocks, omega):
     A_aa = (blocks["Ka"].astype(complex)
             + 1j * omega * blocks["Ca"]
             - w2 * blocks["Ma"])
+
+    # A liner whose admittance depends on frequency: its matrix is not
+    # in Ca, because there is no one matrix it could be.
+    if blocks.get("impedance") is not None:
+        A_aa = A_aa + 1j * omega * blocks["impedance"].at(omega)
 
     # The radiation condition is neither stiffness nor damping: (jk + 1/r)
     # mixes the two, so its matrix is added whole.
@@ -202,6 +236,7 @@ def solve_vibroacoustic_frequency_sweep(
     pressure_values=None,
     pressure_zero_nodes0=None,
     C_a=None,
+    impedance_operator=None,
     eta_s=0.0,
     radiation_operator=None,
     blocks=None,
@@ -233,7 +268,7 @@ def solve_vibroacoustic_frequency_sweep(
         and for all.
     pressure_values : array-like of complex, optional
         What each of those nodes is held at [Pa].
-    pressure_zero_nodes0, C_a, eta_s, radiation_operator : optional
+    pressure_zero_nodes0, C_a, impedance_operator, eta_s, radiation_operator : optional
         Passed to :func:`build_coupled_blocks`. An incident field
         declared on the radiation boundary is added to the acoustic
         right-hand side on top of ``F_a``.
@@ -259,6 +294,7 @@ def solve_vibroacoustic_frequency_sweep(
         system,
         pressure_zero_nodes0=pressure_zero_nodes0,
         C_a=C_a,
+        impedance_operator=impedance_operator,
         eta_s=eta_s,
         radiation_operator=radiation_operator,
     )
@@ -309,9 +345,17 @@ def _prescribed_rows(blocks, pressure_nodes0, pressure_values):
     Where the held pressures sit in the coupled unknown vector.
 
     The acoustic block comes after the structural one, and it holds only
-    the fluid nodes ``blocks["idx_a"]``: a node eliminated by a
-    ``p = 0`` condition is no longer there, and one named twice is kept
-    once.
+    the fluid nodes ``blocks["idx_a"]``. A node that is not one of them
+    is not a constraint this system can carry: it is either outside the
+    fluid or already gone at ``p = 0``. Dropping it would return a
+    normal-looking answer to a different boundary-value problem, so it
+    raises instead.
+
+    Raises
+    ------
+    ValueError
+        If a node is held at two different values, or if a node is not
+        among the retained fluid unknowns.
     """
     if pressure_nodes0 is None or len(pressure_nodes0) == 0:
         return np.array([], dtype=int), np.array([], dtype=complex)
@@ -323,16 +367,54 @@ def _prescribed_rows(blocks, pressure_nodes0, pressure_values):
             f"pressure_values has size {values.size}, expected "
             f"{nodes0.size}, one per node of pressure_nodes0."
         )
+    if nodes0.size and nodes0.min() < 0:
+        raise ValueError(
+            "pressure_nodes0 holds negative indices; they are 0-based "
+            f"node numbers: {sorted(nodes0[nodes0 < 0].tolist())}."
+        )
+
+    # A node named twice states the same constraint twice, which is
+    # harmless when the two agree and a contradiction when they do not.
+    held = {}
+    for node, value in zip(nodes0.tolist(), values.tolist()):
+        if node in held and held[node] != value:
+            raise ValueError(
+                f"node {node} is held at two different pressures, "
+                f"{held[node]} and {value}."
+            )
+        held[node] = value
+    nodes0 = np.array(sorted(held), dtype=int)
+    values = np.array([held[n] for n in nodes0], dtype=complex)
 
     idx_a = np.asarray(blocks["idx_a"], dtype=int)
     # A lookup rather than a searchsorted: nothing promises idx_a is
-    # sorted, and a node the blocks no longer hold has to drop out.
+    # sorted.
     lookup = np.full(int(max(idx_a.max(initial=-1), nodes0.max())) + 2, -1,
                      dtype=int)
     lookup[idx_a] = np.arange(idx_a.size)
     position = lookup[nodes0]
-    inside = position >= 0
-    return (blocks["n_s"] + position[inside]).astype(int), values[inside]
+
+    missing = nodes0[position < 0]
+    if missing.size:
+        pinned = np.asarray(blocks.get("pressure_zero_nodes0", ()), dtype=int)
+        at_zero = np.intersect1d(missing, pinned)
+        outside = np.setdiff1d(missing, pinned)
+        said = []
+        if at_zero.size:
+            said.append(
+                f"{at_zero.tolist()} left the system at p = 0 and cannot "
+                "also be held at a value"
+            )
+        if outside.size:
+            said.append(
+                f"{outside.tolist()} are not fluid unknowns of this model"
+            )
+        raise ValueError(
+            "pressure_nodes0 names nodes the coupled system does not "
+            "hold: " + "; ".join(said) + "."
+        )
+
+    return (blocks["n_s"] + position).astype(int), values
 
 
 def _as_sweep(F, n, n_f, name):
@@ -532,9 +614,10 @@ def coupled_blocks_from_bc(system, bc, *, nodes, groups, boundaries=None,
 
     The three acoustic conditions a coupled model takes reach it by three
     different routes, and this is the one call that walks all three: an
-    impedance becomes ``Ca``, a face at ``p = 0`` leaves the unknowns,
-    and a face or a node held at a value stays in and is handed back for
-    the sweep to partition.
+    impedance becomes ``Ca`` when its admittance is constant and stays an
+    operator when it is not, a face at ``p = 0`` leaves the unknowns, and
+    a face or a node held at a value stays in and is handed back for the
+    sweep to partition.
 
     Parameters
     ----------
@@ -574,12 +657,12 @@ def coupled_blocks_from_bc(system, bc, *, nodes, groups, boundaries=None,
     rho0 = float(system["props"]["rho0"])
     c0 = float(system["props"]["c0"])
 
-    C_a = None
+    impedance = None
     if bc.impedance:
-        C_a = build_impedance_operator(
+        impedance = build_impedance_operator(
             bc, nodes=nodes, rho=rho0, c0=c0, boundaries=boundaries,
             groups=groups, elements=elements, boundary_dim=2,
-        ).at(0.0)
+        )
 
     held, values = prescribed_pressure(bc, boundaries=boundaries,
                                        groups=groups)
@@ -587,7 +670,8 @@ def coupled_blocks_from_bc(system, bc, *, nodes, groups, boundaries=None,
     pinned = held[at_zero]
 
     blocks = build_coupled_blocks(
-        system, C_a=C_a, eta_s=eta_s, pressure_zero_nodes0=pinned,
+        system, impedance_operator=impedance, eta_s=eta_s,
+        pressure_zero_nodes0=pinned,
         radiation_operator=radiation_operator,
     )
     return {
