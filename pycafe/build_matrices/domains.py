@@ -4,7 +4,7 @@
 #
 # The global `elements` dict returned by the mesh loader mixes every
 # element of a given type regardless of role: on a coupled mesh, the
-# plate QUAD4 and the rigid-wall QUAD4 land in the same
+# plate QUAD4 and the hard-wall QUAD4 land in the same
 # "Quadrilateral 4" array. Physical groups are the authoritative
 # domain information: this module maps named groups to registered
 # element types and returns per-domain connectivity for assembly.

@@ -1330,7 +1330,7 @@ def build_model(spec, bc=None, *, show=True, plot_kwargs=None):
     spec : ModelSpec
     bc : AcousticBC, optional
         Boundary conditions for an acoustic model. Default: none at all,
-        i.e. rigid walls everywhere. Ignored for a vibroacoustic model,
+        i.e. hard walls everywhere. Ignored for a vibroacoustic model,
         which is assembled without boundary conditions.
     show : bool, optional
         Draw the geometry, coloured by role, before assembling. Default

@@ -40,7 +40,7 @@ def create_matrices(
         Acoustic impedance. A bare number is the **normalized** value
         ``zeta = Z / (rho * c0)``; see
         :func:`pycafe.boundary_condition.acoustic_bc.make_admittance`.
-        Default is 0.0 (rigid wall).
+        Default is 0.0 (hard wall).
     boundaries : dict, optional
         ``{name: [1-based node tags]}``, required when the impedance
         boundary is given by name.

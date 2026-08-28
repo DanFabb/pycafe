@@ -3,7 +3,7 @@ The mesh contract: what pyCAFE expects to find in a Gmsh file.
 
 Everything pyCAFE knows about a mesh beyond raw coordinates comes from
 **physical groups**. The element arrays returned by the loader mix roles
-— on a coupled mesh the plate quads and the rigid-wall quads land in the
+— on a coupled mesh the plate quads and the hard-wall quads land in the
 same ``"Quadrilateral 4"`` array — so the groups are the only thing that
 says which elements are the fluid, which are the structure, and which
 nodes are clamped.
@@ -16,7 +16,7 @@ Two kinds of group names exist:
   (``add_impedance("lined_wall", ...)``, ``add_velocity("inlet", ...)``).
   Any name works, as long as it is not one of the role names.
 
-A rigid wall needs no group at all — it is the natural boundary
+A hard wall needs no group at all — it is the natural boundary
 condition of the acoustic problem — but naming it is still useful for
 post-processing and for switching it to a lined wall later.
 
@@ -87,7 +87,7 @@ CANONICAL = {spec.role: spec.names[0] for spec in ROLES}
 # Names suggested (never required) for the free groups, so that meshes
 # from different scripts stay readable.
 SUGGESTED_BOUNDARY_NAMES = {
-    "rigid_walls": "acoustically rigid walls; no BC needed, but handy to name",
+    "rigid_walls": "acoustically hard walls; no BC needed, but handy to name",
     "opening": "radiating or open face, usually given an anechoic impedance",
     "inlet": "driven face, usually a prescribed normal velocity",
     "outlet": "terminated face, usually an impedance",
