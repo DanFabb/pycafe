@@ -657,7 +657,237 @@ def duct_with_flush_plate(
     return result, report
 
 
+def _counts(value, n_intervals, name):
+    """Elements per lattice interval, from an int or a sequence."""
+    if value is None:
+        return [1] * n_intervals
+    if isinstance(value, int):
+        return [value] * n_intervals
+    counts = list(value)
+    if len(counts) != n_intervals:
+        raise ValueError(
+            f"{name} has {len(counts)} entries for {n_intervals} intervals."
+        )
+    return counts
+
+
+def block_cavity(
+    x,
+    y,
+    z,
+    cells=None,
+    *,
+    nx=None,
+    ny=None,
+    nz=None,
+    plate=None,
+    wall_prefix="wall",
+    output_path="block_cavity.msh",
+    load=False,
+    verbose=False,
+):
+    """
+    A cavity built of blocks on a lattice: L shapes, steps, T junctions.
+
+    A box is one shape, and most rooms, ducts and enclosures are not
+    boxes. This builds any cavity that can be written as filled cells of
+    a rectangular lattice, still structured and still hexahedral, so the
+    interface with a plate stays conforming and the acoustic elements
+    stay ``CHEXA8``.
+
+    Every entity is created once and looked up by its lattice index, so
+    two blocks that touch share the face between them, and no node is
+    duplicated where they meet.
+
+    **Every outer face becomes its own physical group**, named after the
+    plane it lies in (``wall_x_0mm``, ``wall_z_500mm``): a run can then
+    be asked what each face of the model does, one question per face,
+    instead of being handed a single ``rigid_walls`` to take or leave.
+
+    Parameters
+    ----------
+    x, y, z : sequence of float
+        The lattice lines [m], ascending. ``len(x) - 1`` cells along x.
+    cells : sequence of (int, int, int), optional
+        Which cells are filled with fluid, as lattice indices. Default:
+        all of them, which is a plain box.
+    nx, ny, nz : int or sequence of int, optional
+        Elements per lattice interval. An int applies to every interval;
+        a sequence gives one count per interval.
+    plate : tuple, optional
+        ``(axis, value)``, e.g. ``("z", 0.5)``: the outer faces lying on
+        that plane become the structural group ``plate``, and the curves
+        bounding them become ``plate_clamp``. A third entry restricts the
+        patch to part of that plane, as ranges the face centre has to be
+        within: ``("z", 0.0, {"x": (0.6, 1.2)})`` is a panel let into a
+        floor rather than the whole floor. Without it the mesh is
+        acoustic only.
+    wall_prefix : str, optional
+        First part of every wall group name.
+    output_path : str or Path, optional
+    load : bool, optional
+    verbose : bool, optional
+
+    Returns
+    -------
+    pathlib.Path or tuple
+
+    Examples
+    --------
+    An L-shaped room, 1.2 x 0.6 m in plan, one arm twice as tall, closed
+    by a plate on top of the tall arm:
+
+    >>> block_cavity([0, 0.6, 1.2], [0, 0.6], [0, 0.4, 0.8],   # doctest: +SKIP
+    ...              cells=[(0, 0, 0), (1, 0, 0), (1, 0, 1)],
+    ...              nx=6, ny=6, nz=4, plate=("z", 0.8))
+    """
+    x, y, z = [list(map(float, v)) for v in (x, y, z)]
+    counts = {"x": _counts(nx, len(x) - 1, "nx"),
+              "y": _counts(ny, len(y) - 1, "ny"),
+              "z": _counts(nz, len(z) - 1, "nz")}
+    filled = {tuple(int(v) for v in c) for c in (
+        cells if cells is not None
+        else [(i, j, k) for i in range(len(x) - 1)
+              for j in range(len(y) - 1) for k in range(len(z) - 1)])}
+    if not filled:
+        raise ValueError("no cell is filled: there is nothing to mesh.")
+
+    with GmshModel("block_cavity", verbose=verbose) as m:
+        geo = m.geo
+        points, lines, surfaces = {}, {}, {}
+
+        def point(i, j, k):
+            if (i, j, k) not in points:
+                points[(i, j, k)] = geo.addPoint(x[i], y[j], z[k])
+            return points[(i, j, k)]
+
+        def line(axis, i, j, k):
+            key = (axis, i, j, k)
+            if key not in lines:
+                step = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}[axis]
+                lines[key] = geo.addLine(
+                    point(i, j, k),
+                    point(i + step[0], j + step[1], k + step[2]),
+                )
+            return lines[key]
+
+        def face(axis, i, j, k):
+            """The face of the lattice normal to ``axis`` at that index."""
+            key = (axis, i, j, k)
+            if key in surfaces:
+                return surfaces[key]
+            if axis == "x":
+                loop = [line("y", i, j, k), line("z", i, j + 1, k),
+                        -line("y", i, j, k + 1), -line("z", i, j, k)]
+            elif axis == "y":
+                loop = [line("x", i, j, k), line("z", i + 1, j, k),
+                        -line("x", i, j, k + 1), -line("z", i, j, k)]
+            else:
+                loop = [line("x", i, j, k), line("y", i + 1, j, k),
+                        -line("x", i, j + 1, k), -line("y", i, j, k)]
+            surfaces[key] = geo.addPlaneSurface([geo.addCurveLoop(loop)])
+            return surfaces[key]
+
+        volumes = []
+        for i, j, k in sorted(filled):
+            walls = [face("x", i, j, k), face("x", i + 1, j, k),
+                     face("y", i, j, k), face("y", i, j + 1, k),
+                     face("z", i, j, k), face("z", i, j, k + 1)]
+            volumes.append(geo.addVolume([geo.addSurfaceLoop(walls)]))
+
+        # Transfinite counts follow the lattice: a curve spanning one
+        # interval carries the elements asked for on that interval, and a
+        # shared curve is only ever created once, so the two blocks that
+        # meet agree by construction.
+        curve_nodes = {}
+        for (axis, i, j, k), tag in lines.items():
+            index = {"x": i, "y": j, "z": k}[axis]
+            curve_nodes[tag] = counts[axis][index] + 1
+        m.structured(curves=curve_nodes,
+                     surfaces=sorted(surfaces.values()),
+                     volumes=volumes)
+        geo.synchronize()
+
+        # Which faces are on the outside: those with fluid on one side only.
+        neighbour = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}
+        outer = {}
+        for (axis, i, j, k), tag in surfaces.items():
+            step = neighbour[axis]
+            here = (i, j, k) in filled
+            before = (i - step[0], j - step[1], k - step[2]) in filled
+            if here != before:
+                value = {"x": x[i], "y": y[j], "z": z[k]}[axis]
+                outer[(axis, i, j, k)] = (tag, value)
+
+        plate_faces, plate_keys = [], []
+        if plate is not None:
+            axis_p, value_p = plate[0], float(plate[1])
+            within = plate[2] if len(plate) > 2 else {}
+
+            def inside(key):
+                """Is the centre of that face inside the ranges asked for?"""
+                _, i, j, k = key
+                centre = {"x": 0.5 * (x[i] + x[min(i + 1, len(x) - 1)]),
+                          "y": 0.5 * (y[j] + y[min(j + 1, len(y) - 1)]),
+                          "z": 0.5 * (z[k] + z[min(k + 1, len(z) - 1)])}
+                centre[axis_p] = value_p
+                return all(lo - 1e-9 <= centre[axis] <= hi + 1e-9
+                           for axis, (lo, hi) in within.items())
+
+            plate_keys = [key for key, (tag, value) in outer.items()
+                          if key[0] == axis_p and abs(value - value_p) < 1e-9
+                          and inside(key)]
+            if not plate_keys:
+                raise ValueError(
+                    f"no outer face lies on {axis_p} = {value_p}: the plate "
+                    "has to be a plane of the lattice that is on the outside."
+                )
+            plate_faces = [outer.pop(key)[0] for key in plate_keys]
+
+        m.physical(3, volumes, "fluid")
+        if plate_faces:
+            m.physical(2, plate_faces, "plate")
+            # The clamp is the border of the patch: an edge shared by two
+            # plate faces is inside it, an edge held once is its rim.
+            seen = {}
+            for axis_f, i, j, k in plate_keys:
+                if axis_f == "x":
+                    edges = [("y", i, j, k), ("z", i, j + 1, k),
+                             ("y", i, j, k + 1), ("z", i, j, k)]
+                elif axis_f == "y":
+                    edges = [("x", i, j, k), ("z", i + 1, j, k),
+                             ("x", i, j, k + 1), ("z", i, j, k)]
+                else:
+                    edges = [("x", i, j, k), ("y", i + 1, j, k),
+                             ("x", i, j + 1, k), ("y", i, j, k)]
+                for edge in edges:
+                    seen[edge] = seen.get(edge, 0) + 1
+            rim = [lines[edge] for edge, times in seen.items() if times == 1]
+            m.physical(1, sorted(rim), "plate_clamp")
+
+        # One group per plane the remaining faces lie in, named after it.
+        planes = {}
+        for (axis, i, j, k), (tag, value) in sorted(outer.items()):
+            planes.setdefault(f"{wall_prefix}_{axis}_{round(value * 1e3)}mm",
+                              []).append(tag)
+        for name, tags in sorted(planes.items()):
+            m.physical(2, tags, name)
+
+        if verbose:
+            print(f"walls: {', '.join(sorted(planes))}")
+
+        out = _finish(
+            m, output_path, 3, verbose,
+            f"{len(filled)} blocks, {len(volumes)} volumes, "
+            f"{len(planes)} wall groups"
+            + (f", plate on {plate[0]} = {plate[1]}" if plate else ""),
+        )
+
+    return _maybe_load(out, load)
+
+
 GEOMETRIES = {
+    "block_cavity": block_cavity,
     "box_cavity": box_cavity,
     "box_with_plate": box_with_plate,
     "duct_2d": duct_2d,
