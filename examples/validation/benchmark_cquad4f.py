@@ -25,7 +25,7 @@ import numpy as np
 from scipy.sparse.linalg import eigsh
 
 from pycafe.build_matrices.assembly import assemble_KM
-from pycafe.build_matrices.element_cquad4f import element_matrices_cquad4f
+from pycafe_vibro.element_cquad4f import element_matrices_cquad4f
 
 E, NU, T, RHO = 200e3, 0.3, 0.1, 7.8e-9
 

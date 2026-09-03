@@ -16,6 +16,53 @@ were broad and deep, there is always room for improvement and new features. A lo
 
 ---
 
+Two packages, one repository
+----------------------------
+
+The repository ships two distributions, so that an acoustic study
+carries only what an acoustic study needs:
+
+=================================  =============================================
+``pip install pycafe-acoustics``   The acoustic half: fluid elements (CQUAD4,
+                                   CQUAD8, CHEXA8, CTETRA4), acoustic boundary
+                                   conditions (impedance, velocity, radiation),
+                                   the Helmholtz and modal solvers, the
+                                   post-processing. Imported as ``pycafe``.
+                                   Source: ``packages/pycafe``.
+``pip install pycafe-vibro``       The structural half: the CQUAD4F shell, the
+                                   plate material, the fluid-structure coupling
+                                   on a conforming mesh and the coupled solvers.
+                                   It depends on ``pycafe-acoustics``, so this
+                                   one command installs both. Imported as
+                                   ``pycafe_vibro``.
+                                   Source: ``packages/pycafe-vibro``.
+=================================  =============================================
+
+Two things ship in the packages but are **work in progress**, and are
+not part of the release: the perfectly matched layer
+(``pycafe.build_matrices.pml``) and the coupling of two meshes that do
+not share their interface nodes
+(``pycafe_vibro.coupling_nonconforming``). The notebooks that exercise
+what is unsettled are in ``examples/WIP/``.
+
+The acoustic distribution is called ``pycafe-acoustics`` because the
+bare ``pycafe`` on PyPI belongs to an unrelated project; the name to
+import is ``pycafe`` either way.
+
+``pycafe_vibro`` registers its element in pyCAFE's registry on import
+and re-exports the acoustic names, so ``import pycafe_vibro as pcv``
+is the whole API. Scripts written against ``pycafe`` keep working
+either way: a coupled name asked of an acoustic-only install says
+which package defines it.
+
+From a checkout, both are installed with
+
+.. code-block:: bash
+
+    pip install -e packages/pycafe -e packages/pycafe-vibro
+
+---
+
 Typical workflow
 ----------------
 

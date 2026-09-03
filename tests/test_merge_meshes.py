@@ -115,8 +115,9 @@ class TestIndependentStructure:
 
     def test_split_mesh_and_coupling(self, step_file):
         from pycafe.core.model_spec import (
-            AIR, CadFile, ModelSpec, aluminium, build_model,
+            AIR, CadFile, ModelSpec, build_model,
         )
+        from pycafe_vibro.structure import aluminium
 
         # Tags read the same way a user would: fluid is the cut box,
         # the shell is the cylinder side surface.

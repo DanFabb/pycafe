@@ -16,8 +16,8 @@ import pytest
 from pycafe.build_matrices.domains import (
     identify_domains,
     build_KM_acoustic_domain,
-    build_KM_structural_domain,
 )
+from pycafe_vibro.domains import build_KM_structural_domain
 from pycafe.solver.solver_modale import solve_modal_acoustic_reduced
 
 LX, LY, LZ = 0.8, 0.6, 0.5

@@ -32,11 +32,11 @@ from pycafe.core.model_spec import (  # noqa: E402
     AIR,
     ModelSpec,
     NastranFile,
-    aluminium,
     build_mesh,
     build_model,
     materials_from_deck,
 )
+from pycafe_vibro.structure import aluminium  # noqa: E402
 from pycafe.create_geom import (  # noqa: E402
     bdf_to_mesh,
     inspect_bdf,

@@ -40,7 +40,7 @@ The core workflow utilities implement the main analysis pipeline.
 .. automodule:: pycafe.core.run_analysis
    :members:
 
-.. automodule:: pycafe.core.prepare_vibroacoustic_system
+.. automodule:: pycafe_vibro.prepare_vibroacoustic_system
    :members:
 
 ---
@@ -63,7 +63,7 @@ operations.
 .. automodule:: pycafe.build_matrices.element_tetra4
    :members:
 
-.. automodule:: pycafe.build_matrices.element_cquad4f
+.. automodule:: pycafe_vibro.element_cquad4f
    :members:
 
 .. automodule:: pycafe.build_matrices.pml
@@ -75,22 +75,45 @@ operations.
 .. automodule:: pycafe.build_matrices.bc_radiation
    :members:
 
+.. automodule:: pycafe.build_matrices.faces
+   :members:
+
 ---
 
 Vibroacoustic coupling
 ----------------------
 
-Fluid-structure coupling on a conforming mesh, its fallback when the two
-sides are meshed independently, and the solvers of the fully coupled
-(unsymmetric) system.
+The modules below ship in ``pycafe-vibro``, the structural half of
+pyCAFE, which installs ``pycafe-acoustics`` with it. They are the shell
+material and its assembly, the fluid-structure coupling on a conforming
+mesh, and the solvers of the fully coupled (unsymmetric) system.
 
-.. automodule:: pycafe.build_matrices.coupling
+``coupling_nonconforming``, the fallback when the two sides are meshed
+independently, is work in progress and not part of the release; so is
+``pycafe.build_matrices.pml`` on the acoustic side.
+
+.. automodule:: pycafe_vibro.structure
    :members:
 
-.. automodule:: pycafe.build_matrices.coupling_nonconforming
+.. automodule:: pycafe_vibro.domains
    :members:
 
-.. automodule:: pycafe.solver.solver_vibroacoustic
+.. automodule:: pycafe_vibro.coupling
+   :members:
+
+.. automodule:: pycafe_vibro.coupling_nonconforming
+   :members:
+
+.. automodule:: pycafe_vibro.solver_vibroacoustic
+   :members:
+
+.. automodule:: pycafe_vibro.solver_vibroacoustic_modal
+   :members:
+
+.. automodule:: pycafe_vibro.panel
+   :members:
+
+.. automodule:: pycafe_vibro.analytical
    :members:
 
 ---

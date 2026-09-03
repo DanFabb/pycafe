@@ -7,7 +7,11 @@ import sys
 
 # -- Path setup --------------------------------------------------------------
 
-sys.path.insert(0, os.path.abspath("../.."))
+# The repo ships two distributions; both source trees are on the path,
+# so that autodoc reads pycafe and pycafe_vibro from the checkout.
+_root = os.path.abspath("../..")
+sys.path.insert(0, os.path.join(_root, "packages", "pycafe", "src"))
+sys.path.insert(0, os.path.join(_root, "packages", "pycafe-vibro", "src"))
 
 # -- Project information -----------------------------------------------------
 

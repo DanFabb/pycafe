@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.27,<1.28"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pycafe-vibro"
+version = "1.1.0"
+authors = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
+maintainers = [{name = "Daniele Fabbri et Al.", email = "daniele.fabbri@polito.it"}]
+license = "MIT"
+description = "pycafe-vibro: the structural and vibroacoustic half of pyCAFE."
+readme = "README.rst"
+keywords = ["pyCAFE", "Vibroacoustics", "Fluid-structure coupling", "Shell"]
+requires-python = ">=3.10"
+
+# The acoustic half is pyCAFE itself, published as pycafe-acoustics
+# (the bare "pycafe" on PyPI belongs to an unrelated project):
+# installing this installs it.
+dependencies = [
+    "pycafe-acoustics>=1.1.0",
+]
+
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'Topic :: Scientific/Engineering',
+    'Programming Language :: Python :: 3.12',
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.optional-dependencies]
+dev = [
+    "sphinx",
+    "twine",
+    "wheel",
+    "pytest",
+    "build",
+    "sphinx-rtd-theme",
+    "sphinx-copybutton>=0.5.2",
+]
+
+# How pyCAFE finds the structural element without importing this
+# package itself; see pycafe.build_matrices.element_registry.
+[project.entry-points."pycafe.elements"]
+vibro = "pycafe_vibro"
+
+[project.urls]
+homepage = "https://github.com/DanFabb/pycafe"
+documentation = "https://github.com/DanFabb/pycafe"
+source = "https://github.com/DanFabb/pycafe"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pycafe_vibro"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src",
+    "README.rst",
+    "pyproject.toml",
+]

@@ -15,7 +15,7 @@ import pytest
 from scipy.sparse.linalg import eigsh
 
 from pycafe.build_matrices.assembly import assemble_KM
-from pycafe.build_matrices.element_cquad4f import (
+from pycafe_vibro.element_cquad4f import (
     DRILLING_DOF,
     MEMBRANE_DOF,
     PLATE_DOF,

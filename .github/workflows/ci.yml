@@ -29,7 +29,7 @@ jobs:
           pip install pytest
           pip install numpy scipy matplotlib tqdm
           pip install gmsh
-          pip install -e .
+          pip install -e packages/pycafe -e packages/pycafe-vibro
 
       - name: Run tests
         run: |

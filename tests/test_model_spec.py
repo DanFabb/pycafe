@@ -31,15 +31,13 @@ from pycafe.core.model_spec import (  # noqa: E402
     Library,
     MeshFile,
     ModelSpec,
-    Structure,
-    aluminium,
     build_mesh,
     build_model,
     describe_domains,
     element_size_for,
-    steel,
 )
 from pycafe.create_geom import inspect_cad, list_groups  # noqa: E402
+from pycafe_vibro.structure import Structure, aluminium, steel  # noqa: E402
 
 
 # sizing

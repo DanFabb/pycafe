@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from scipy.sparse.linalg import eigsh
 
-from pycafe.core.prepare_vibroacoustic_system import (
+from pycafe_vibro.prepare_vibroacoustic_system import (
     prepare_vibroacoustic_system,
 )
 from pycafe.solver.solver_modale import solve_modal_acoustic_reduced

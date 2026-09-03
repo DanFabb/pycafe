@@ -23,16 +23,16 @@ import numpy as np
 import pytest
 from scipy.sparse.linalg import eigsh
 
-from pycafe.build_matrices.coupling import (
+from pycafe_vibro.coupling import (
     acoustic_coupling_matrix,
     build_coupling_matrix,
     interface_area_vector,
     interface_normals,
 )
-from pycafe.core.prepare_vibroacoustic_system import (
+from pycafe_vibro.prepare_vibroacoustic_system import (
     prepare_vibroacoustic_system,
 )
-from pycafe.solver.solver_vibroacoustic import (
+from pycafe_vibro.solver_vibroacoustic import (
     build_coupled_blocks,
     coupled_dynamic_stiffness,
     expand_pressure,
@@ -526,7 +526,7 @@ class TestImpedanceOperatorInCoupledRuns:
         it must hand over the operator, not a sample of it.
         """
         from pycafe.boundary_condition.acoustic_bc import AcousticBC
-        from pycafe.solver.solver_vibroacoustic import coupled_blocks_from_bc
+        from pycafe_vibro.solver_vibroacoustic import coupled_blocks_from_bc
 
         nodes, elements, boundaries, groups = mesh_full
         bc = AcousticBC().add_impedance(
@@ -542,7 +542,7 @@ class TestImpedanceOperatorInCoupledRuns:
         assert abs(operator.at(100.0) - operator.at(2000.0)).max() > 0.0
 
     def test_modal_reduction_refuses_it(self, system):
-        from pycafe.solver.solver_vibroacoustic_modal import (
+        from pycafe_vibro.solver_vibroacoustic_modal import (
             build_coupled_modal_basis,
         )
 

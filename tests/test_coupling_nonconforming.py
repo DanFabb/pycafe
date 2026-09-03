@@ -3,7 +3,7 @@ Tests for the coupling of interfaces whose meshes do not share nodes.
 
 The method under test is the interpolation route of Mi & Zheng (2018),
 CMA 338:264-297, implemented in
-``pycafe.build_matrices.coupling_nonconforming``.
+``pycafe_vibro.coupling_nonconforming``.
 
 Covered:
 - a **conforming** interface is untouched: the fallback never runs, and
@@ -27,12 +27,12 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_matrix
 
-from pycafe.build_matrices.coupling import (
+from pycafe_vibro.coupling import (
     build_coupling_matrix,
     interface_area_vector,
     interface_is_conforming,
 )
-from pycafe.build_matrices.coupling_nonconforming import (
+from pycafe_vibro.coupling_nonconforming import (
     build_nonconforming_coupling,
     interpolation_matrix,
     shape_parameter,
@@ -233,7 +233,7 @@ class TestCoupledModel:
     T, RHO_S, E, NU = 0.002, 7800.0, 210e9, 0.3
 
     def _system(self, path):
-        from pycafe.core.prepare_vibroacoustic_system import (
+        from pycafe_vibro.prepare_vibroacoustic_system import (
             prepare_vibroacoustic_system,
         )
         from pycafe.create_geom.visualize_mesh import load_mesh_with_groups
@@ -300,7 +300,7 @@ class TestCoupledModel:
 
     def test_coupled_frequencies_match_the_conforming_model(
             self, conforming_mesh, split_mesh):
-        from pycafe.solver.solver_vibroacoustic import (
+        from pycafe_vibro.solver_vibroacoustic import (
             solve_vibroacoustic_modal,
         )
 

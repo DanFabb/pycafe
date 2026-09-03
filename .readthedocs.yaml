@@ -8,7 +8,9 @@ build:
 python:
   install:
     - method: pip
-      path: .
+      path: packages/pycafe
+    - method: pip
+      path: packages/pycafe-vibro
     - requirements: docs/requirements.txt
 
 sphinx:

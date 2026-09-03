@@ -20,15 +20,15 @@ import tempfile
 import numpy as np
 import pytest
 
-from pycafe.core.prepare_vibroacoustic_system import (
+from pycafe_vibro.prepare_vibroacoustic_system import (
     prepare_vibroacoustic_system,
 )
-from pycafe.solver.solver_vibroacoustic import (
+from pycafe_vibro.solver_vibroacoustic import (
     build_coupled_blocks,
     coupled_modal_matrices,
     solve_vibroacoustic_frequency_sweep,
 )
-from pycafe.solver.solver_vibroacoustic_modal import (
+from pycafe_vibro.solver_vibroacoustic_modal import (
     build_cms_basis,
     build_coupled_modal_basis,
     left_modes_from_right,
